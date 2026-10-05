@@ -1,0 +1,196 @@
+.swade-advancement-dialog {
+    --sa-met: #2e7d32;
+    --sa-missing: #c62828;
+    --sa-missing-bg: rgba(198, 40, 40, 0.1);
+    --sa-unverifiable: #8d6e00;
+    --sa-muted: var(--color-text-subtle, #6b6b6b);
+    --sa-border: var(--color-border, rgba(0, 0, 0, 0.25));
+    --sa-panel: rgba(0, 0, 0, 0.04);
+    --sa-accent: var(--color-warm-2, #c9593f);
+}
+
+.theme-dark .swade-advancement-dialog,
+.swade-advancement-dialog.theme-dark {
+    --sa-met: #81c784;
+    --sa-missing: #ef9a9a;
+    --sa-missing-bg: rgba(239, 154, 154, 0.12);
+    --sa-unverifiable: #ffd54f;
+    --sa-panel: rgba(255, 255, 255, 0.05);
+    --sa-border: rgba(255, 255, 255, 0.2);
+}
+
+.swade-advancement-dialog .window-content {
+    gap: 0.75rem;
+}
+
+.swade-advancement-dialog .advance-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* Advance number and rank */
+.swade-advancement-dialog .advance-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--sa-border);
+}
+
+.swade-advancement-dialog .advance-number {
+    font-weight: bold;
+    font-size: var(--font-size-16, 1rem);
+}
+
+.swade-advancement-dialog .advance-rank {
+    font-size: var(--font-size-12, 0.75rem);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sa-muted);
+}
+
+.swade-advancement-dialog .hint {
+    margin: 0;
+    font-style: italic;
+    color: var(--sa-muted);
+}
+
+/* Edge drop zone */
+.swade-advancement-dialog .edge-drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 6rem;
+    padding: 1rem;
+    border: 2px dashed var(--sa-border);
+    border-radius: 6px;
+    color: var(--sa-muted);
+    text-align: center;
+    transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.swade-advancement-dialog .edge-drop-zone i {
+    font-size: 1.5rem;
+}
+
+.swade-advancement-dialog .edge-drop-zone.compact {
+    flex-direction: row;
+    min-height: unset;
+    padding: 0.4rem;
+    font-size: var(--font-size-12, 0.75rem);
+}
+
+.swade-advancement-dialog .edge-drop-zone.compact i {
+    font-size: 1rem;
+}
+
+.swade-advancement-dialog .edge-drop-zone.drag-over {
+    border-color: var(--sa-accent);
+    background: var(--sa-panel);
+    color: inherit;
+}
+
+/* Item Browser button */
+.swade-advancement-dialog .item-browser-button {
+    gap: 0.4rem;
+    text-align: center;
+}
+
+/* Selected edge */
+.swade-advancement-dialog .selected-edge {
+    border: 1px solid var(--sa-border);
+    border-radius: 6px;
+    background: var(--sa-panel);
+    overflow: hidden;
+}
+
+.swade-advancement-dialog .edge-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem;
+}
+
+.swade-advancement-dialog .edge-header img {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border: none;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.swade-advancement-dialog .edge-name {
+    flex: 1;
+    font-weight: bold;
+    font-size: var(--font-size-16, 1rem);
+}
+
+.swade-advancement-dialog .edge-header button {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+}
+
+.swade-advancement-dialog .edge-requirements,
+.swade-advancement-dialog .no-requirements {
+    margin: 0;
+    padding: 0.5rem;
+    border-top: 1px solid var(--sa-border);
+}
+
+.swade-advancement-dialog .no-requirements {
+    color: var(--sa-muted);
+    font-style: italic;
+}
+
+.swade-advancement-dialog .edge-requirements {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.swade-advancement-dialog .requirement {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+}
+
+.swade-advancement-dialog .requirement.met i {
+    color: var(--sa-met);
+}
+
+.swade-advancement-dialog .requirement.unverifiable i {
+    color: var(--sa-unverifiable);
+}
+
+.swade-advancement-dialog .requirement.missing {
+    background: var(--sa-missing-bg);
+    color: var(--sa-missing);
+    font-weight: bold;
+}
+
+.swade-advancement-dialog .requirement .combinator {
+    margin-left: auto;
+    font-size: var(--font-size-11, 0.7rem);
+    font-weight: normal;
+    font-style: italic;
+    text-transform: uppercase;
+    color: var(--sa-muted);
+}
+
+/* Footer */
+.swade-advancement-dialog .advance-dialog-footer {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.swade-advancement-dialog .advance-dialog-footer button {
+    flex: 1;
+}

@@ -1,0 +1,49 @@
+{
+    "SWADE_ADVANCEMENT.AddAdvance": "Add Advance",
+    "SWADE_ADVANCEMENT.AdvanceNumber": "Advance {number}",
+    "SWADE_ADVANCEMENT.AdvanceType": "Type",
+    "SWADE_ADVANCEMENT.Add": "Add",
+    "SWADE_ADVANCEMENT.Cancel": "Cancel",
+    "SWADE_ADVANCEMENT.SelectPlaceholder": "— Select —",
+    "SWADE_ADVANCEMENT.Skill": "Skill",
+    "SWADE_ADVANCEMENT.FirstSkill": "First Skill",
+    "SWADE_ADVANCEMENT.SecondSkill": "Second Skill",
+    "SWADE_ADVANCEMENT.Attribute": "Attribute",
+    "SWADE_ADVANCEMENT.Hindrance": "Hindrance",
+    "SWADE_ADVANCEMENT.Unskilled": "Unskilled",
+    "SWADE_ADVANCEMENT.Major": "(Major)",
+    "SWADE_ADVANCEMENT.Minor": "(Minor)",
+    "SWADE_ADVANCEMENT.DropEdge": "Drag and drop an edge here",
+    "SWADE_ADVANCEMENT.DropEdgeReplace": "Drop a different edge to replace it",
+    "SWADE_ADVANCEMENT.ClearEdge": "Clear Edge",
+    "SWADE_ADVANCEMENT.NoSkills": "No skills are at or above their linked attribute.",
+    "SWADE_ADVANCEMENT.NoHindrances": "This character has no hindrances.",
+    "SWADE_ADVANCEMENT.OpenItemBrowser": "Browse Edges",
+
+    "SWADE_ADVANCEMENT.Requirements": {
+        "None": "This edge has no requirements.",
+        "Or": "or",
+        "Unverifiable": "This requirement can't be checked automatically",
+        "PowerPointsOncePerRank": "Can only be taken once per rank"
+    },
+
+    "SWADE_ADVANCEMENT.Notes": {
+        "RemovedHindrance": "Removed {name}",
+        "ReducedHindranceToMinor": "Reduced {name} to Minor",
+        "ReducedHindrance": "Reduced {name}"
+    },
+
+    "SWADE_ADVANCEMENT.Delete": {
+        "Prompt": "Are you sure you want to delete this advance?",
+        "PromptUndo": "Are you sure you want to delete this advance? Any changes it made to the character will be undone."
+    },
+
+    "SWADE_ADVANCEMENT.Undo": {
+        "MissingItem": "Could not undo the changes to {name} because it is no longer on the character."
+    },
+
+    "SWADE_ADVANCEMENT.Warnings": {
+        "NotAnEdge": "Only edges can be dropped here.",
+        "AddFailed": "The advance could not be added."
+    }
+}

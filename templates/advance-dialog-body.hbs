@@ -1,0 +1,103 @@
+<section class="advance-dialog-body">
+    <div class="advance-summary">
+        <span class="advance-number">{{localize "SWADE_ADVANCEMENT.AdvanceNumber" number=advanceNumber}}</span>
+        <span class="advance-rank">{{rank}}</span>
+    </div>
+
+    <div class="form-group">
+        <label for="advance-type">{{localize "SWADE_ADVANCEMENT.AdvanceType"}}</label>
+        <div class="form-fields">
+            <select id="advance-type" class="advance-type">
+                {{selectOptions advanceTypes selected=advanceType valueAttr="id" labelAttr="label"}}
+            </select>
+        </div>
+    </div>
+
+    {{#if isEdge}}
+        {{#if edge}}
+            <div class="selected-edge">
+                <div class="edge-header">
+                    <img src="{{edge.img}}" alt="{{edge.name}}">
+                    <span class="edge-name">{{edge.name}}</span>
+                    <button type="button" class="icon fa-solid fa-xmark" data-action="clearEdge" data-tooltip="{{localize 'SWADE_ADVANCEMENT.ClearEdge'}}" aria-label="{{localize 'SWADE_ADVANCEMENT.ClearEdge'}}"></button>
+                </div>
+                {{#if edge.requirements.length}}
+                    <ul class="edge-requirements">
+                        {{#each edge.requirements}}
+                            <li class="requirement {{#if missing}}missing{{else if unverifiable}}unverifiable{{else}}met{{/if}}">
+                                {{#if missing}}
+                                    <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
+                                {{else if unverifiable}}
+                                    <i class="fa-solid fa-circle-question" aria-hidden="true" data-tooltip="{{localize 'SWADE_ADVANCEMENT.Requirements.Unverifiable'}}"></i>
+                                {{else}}
+                                    <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                                {{/if}}
+                                <span>{{label}}</span>
+                                {{#if isOr}}<span class="combinator">{{localize "SWADE_ADVANCEMENT.Requirements.Or"}}</span>{{/if}}
+                            </li>
+                        {{/each}}
+                    </ul>
+                {{else}}
+                    <p class="no-requirements">{{localize "SWADE_ADVANCEMENT.Requirements.None"}}</p>
+                {{/if}}
+            </div>
+        {{/if}}
+        <div class="edge-drop-zone {{#if edge}}compact{{/if}}">
+            <i class="fa-solid fa-hand-pointer" aria-hidden="true"></i>
+            <span>{{dropLabel}}</span>
+        </div>
+        {{#if showItemBrowser}}
+            <div class="item-browser-button flexrow">
+                <button class="open-item-browser-button"><i class="fas fa-folder-gear"></i> {{{localize "SWADE_ADVANCEMENT.OpenItemBrowser"}}}</button>
+            </div>
+        {{/if}}
+    {{/if}}
+
+    {{#if isSingleSkill}}
+        <div class="form-group">
+            <label for="single-skill">{{localize "SWADE_ADVANCEMENT.Skill"}}</label>
+            <div class="form-fields">
+                <select id="single-skill" data-selection="singleSkill">
+                    {{selectOptions skillOptions selected=singleSkill blank=placeholder valueAttr="id" labelAttr="label"}}
+                </select>
+            </div>
+        </div>
+        {{#unless skillOptions.length}}<p class="hint">{{localize "SWADE_ADVANCEMENT.NoSkills"}}</p>{{/unless}}
+    {{/if}}
+
+    {{#if isTwoSkills}}
+        {{#each skillSelects}}
+            <div class="form-group">
+                <label for="two-skills-{{index}}">{{label}}</label>
+                <div class="form-fields">
+                    <select id="two-skills-{{index}}" data-selection="twoSkills" data-index="{{index}}">
+                        {{selectOptions options selected=selected blank=@root.placeholder valueAttr="id" labelAttr="label"}}
+                    </select>
+                </div>
+            </div>
+        {{/each}}
+    {{/if}}
+
+    {{#if isAttribute}}
+        <div class="form-group">
+            <label for="attribute">{{localize "SWADE_ADVANCEMENT.Attribute"}}</label>
+            <div class="form-fields">
+                <select id="attribute" data-selection="attribute">
+                    {{selectOptions attributeOptions selected=attribute blank=placeholder valueAttr="id" labelAttr="label"}}
+                </select>
+            </div>
+        </div>
+    {{/if}}
+
+    {{#if isHindrance}}
+        <div class="form-group">
+            <label for="hindrance">{{localize "SWADE_ADVANCEMENT.Hindrance"}}</label>
+            <div class="form-fields">
+                <select id="hindrance" data-selection="hindrance">
+                    {{selectOptions hindranceOptions selected=hindrance blank=placeholder valueAttr="id" labelAttr="label"}}
+                </select>
+            </div>
+        </div>
+        {{#unless hindranceOptions.length}}<p class="hint">{{localize "SWADE_ADVANCEMENT.NoHindrances"}}</p>{{/unless}}
+    {{/if}}
+</section>
