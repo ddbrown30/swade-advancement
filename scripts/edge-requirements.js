@@ -21,6 +21,7 @@ export class EdgeRequirements {
             return {
                 label: EdgeRequirements.getRequirementLabel(r),
                 met: result.met,
+                missing: !result.met,
                 unverifiable: result.unverifiable,
                 combinator: r.combinator,
             };
@@ -30,23 +31,24 @@ export class EdgeRequirements {
         const groups = [];
         for (let i = 0; i < results.length; ++i) {
             if (i == 0 || results[i - 1].combinator != "or") {
-                groups.push([]);
+                groups.push({ requirements: [] });
             }
-            groups[groups.length - 1].push(results[i]);
+            groups[groups.length - 1].requirements.push(results[i]);
         }
 
         for (const group of groups) {
-            const groupMet = group.some((r) => r.met);
-            for (const result of group) {
-                result.missing = !groupMet;
-                result.isOr = result.combinator == "or" && result != group[group.length - 1];
+            group.met = group.requirements.some((r) => r.met);
+            group.missing = !group.met;
+            group.unverifiable = group.requirements.every((r) => r.unverifiable);
+            for (const result of group.requirements) {
+                result.isOr = result.combinator == "or" && result != group.requirements[group.requirements.length - 1];
             }
         }
 
         if (edge.system.swid == POWER_POINTS_SWID) {
             const met = !EdgeRequirements.hasPowerPointsThisRank(actor, edge, advanceSort, advanceData);
             results.push({
-                label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.PowerPointsOncePerRank"),
+                label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
                 met: met,
                 missing: !met,
                 unverifiable: false,
@@ -54,8 +56,8 @@ export class EdgeRequirements {
         }
 
         return {
-            met: results.every((r) => !r.missing),
-            requirements: results,
+            met: groups.every((r) => !r.missing),
+            groups: groups,
         };
     }
 
@@ -80,33 +82,42 @@ export class EdgeRequirements {
      * @returns {{met: Boolean, unverifiable: Boolean}}
      */
     static checkRequirement(actor, requirement, advanceSort) {
+        const req = { ...requirement };
         const hasItem = (type) => {
             return actor.items.some((i) => {
                 if (i.type != type) return false;
-                if (requirement.selector && i.system.swid == requirement.selector) return true;
-                return !!requirement.label && i.name.toLowerCase() == requirement.label.toLowerCase();
+                if (req.selector && i.system.swid == req.selector) return true;
+                return !!req.label && i.name.toLowerCase().startsWith(req.label.toLowerCase());
             });
         };
 
-        switch (requirement.type) {
+        if (req.type === "other" && req.label.includes("(Any)") && !req.label.includes(" or ")) {
+            req.type = "edge";
+        }
+
+        switch (req.type) {
             case "wildCard":
-                return { met: actor.isWildcard == !!requirement.value, unverifiable: false };
+                return { met: actor.isWildcard == !!req.value, unverifiable: false };
             case "rank": {
-                const requiredRank = EdgeRequirements.getRequiredRankIndex(requirement.value);
+                const requiredRank = EdgeRequirements.getRequiredRankIndex(req.value);
                 if (requiredRank < 0) return { met: true, unverifiable: true };
                 return { met: game.swade.util.getRankFromAdvance(advanceSort) >= requiredRank, unverifiable: false };
             }
             case "attribute": {
-                const die = Utils.getBaseAttributeDie(actor, requirement.selector);
+                const die = Utils.getBaseAttributeDie(actor, req.selector);
                 if (!die) return { met: false, unverifiable: false };
-                return { met: die.sides >= Number(requirement.value), unverifiable: false };
+                return { met: die.sides >= Number(req.value), unverifiable: false };
             }
             case "skill": {
-                const skill = actor.items.find((i) => i.type == "skill" && (i.system.swid == requirement.selector || i.name.toLowerCase() == requirement.label?.toLowerCase()));
+                const skill = actor.items.find((i) => i.type == "skill" && (i.system.swid == req.selector || i.name.toLowerCase() == req.label?.toLowerCase()));
                 if (!skill) return { met: false, unverifiable: false };
-                return { met: Utils.getBaseSkillDie(skill).sides >= Number(requirement.value), unverifiable: false };
+                return { met: Utils.getBaseSkillDie(skill).sides >= Number(req.value), unverifiable: false };
             }
             case "edge":
+                if (req.label.includes("at least")){
+                    return { met: true, unverifiable: true };
+                }
+                req.label = req.label.replace(" (Any)", "");
                 return { met: hasItem("edge"), unverifiable: false };
             case "hindrance":
                 return { met: hasItem("hindrance"), unverifiable: false };

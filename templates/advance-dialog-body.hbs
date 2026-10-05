@@ -21,22 +21,30 @@
                     <span class="edge-name">{{edge.name}}</span>
                     <button type="button" class="icon fa-solid fa-xmark" data-action="clearEdge" data-tooltip="{{localize 'SWADE_ADVANCEMENT.ClearEdge'}}" aria-label="{{localize 'SWADE_ADVANCEMENT.ClearEdge'}}"></button>
                 </div>
-                {{#if edge.requirements.length}}
-                    <ul class="edge-requirements">
-                        {{#each edge.requirements}}
-                            <li class="requirement {{#if missing}}missing{{else if unverifiable}}unverifiable{{else}}met{{/if}}">
-                                {{#if missing}}
-                                    <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
-                                {{else if unverifiable}}
-                                    <i class="fa-solid fa-circle-question" aria-hidden="true" data-tooltip="{{localize 'SWADE_ADVANCEMENT.Requirements.Unverifiable'}}"></i>
-                                {{else}}
-                                    <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-                                {{/if}}
-                                <span>{{label}}</span>
-                                {{#if isOr}}<span class="combinator">{{localize "SWADE_ADVANCEMENT.Requirements.Or"}}</span>{{/if}}
-                            </li>
+                {{#if edge.groups.length}}
+                    <div class="edge-requirements">
+                        {{#each edge.groups as | group |}}
+                            {{#if (gt group.requirements.length 1)}}
+                                <div class="requirement-group {{#if group.missing}}missing{{else if group.unverifiable}}unverifiable{{else}}met{{/if}}">
+                            {{/if}}
+                            {{#each group.requirements}}
+                                <div class="requirement {{#if missing}}missing{{else if unverifiable}}unverifiable{{else}}met{{/if}}">
+                                    {{#if missing}}
+                                        <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
+                                    {{else if unverifiable}}
+                                        <i class="fa-solid fa-circle-question" aria-hidden="true" data-tooltip="{{localize 'SWADE_ADVANCEMENT.Requirements.Unverifiable'}}"></i>
+                                    {{else}}
+                                        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                                    {{/if}}
+                                    <span>{{label}}</span>
+                                    {{#if isOr}}<span class="combinator">{{localize "SWADE_ADVANCEMENT.Requirements.Or"}}</span>{{/if}}
+                                </div>
+                            {{/each}}
+                            {{#if (gt requirements.length 1)}}
+                                </div>
+                            {{/if}}
                         {{/each}}
-                    </ul>
+                    </div>
                 {{else}}
                     <p class="no-requirements">{{localize "SWADE_ADVANCEMENT.Requirements.None"}}</p>
                 {{/if}}
@@ -62,7 +70,9 @@
                 </select>
             </div>
         </div>
-        {{#unless skillOptions.length}}<p class="hint">{{localize "SWADE_ADVANCEMENT.NoSkills"}}</p>{{/unless}}
+        {{#unless skillOptions.length}}
+            <p class="hint">{{localize "SWADE_ADVANCEMENT.NoSkills"}}</p>
+        {{/unless}}
     {{/if}}
 
     {{#if isTwoSkills}}
@@ -98,6 +108,8 @@
                 </select>
             </div>
         </div>
-        {{#unless hindranceOptions.length}}<p class="hint">{{localize "SWADE_ADVANCEMENT.NoHindrances"}}</p>{{/unless}}
+        {{#unless hindranceOptions.length}}
+            <p class="hint">{{localize "SWADE_ADVANCEMENT.NoHindrances"}}</p>
+        {{/unless}}
     {{/if}}
 </section>

@@ -87,7 +87,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                         name: this.edge.name,
                         img: this.edge.img,
                         uuid: this.edge.uuid,
-                        requirements: check.requirements,
+                        groups: check.groups,
                     };
                     context.canAdd = check.met;
                 }

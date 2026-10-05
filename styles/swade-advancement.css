@@ -2,6 +2,7 @@
     --sa-met: #2e7d32;
     --sa-missing: #c62828;
     --sa-missing-bg: rgba(198, 40, 40, 0.1);
+    --sa-missing-group-met: #6b6b6b;
     --sa-unverifiable: #8d6e00;
     --sa-muted: var(--color-text-subtle, #6b6b6b);
     --sa-border: var(--color-border, rgba(0, 0, 0, 0.25));
@@ -14,6 +15,7 @@
     --sa-met: #81c784;
     --sa-missing: #ef9a9a;
     --sa-missing-bg: rgba(239, 154, 154, 0.12);
+    --sa-missing-group-met: #9c9c9c;
     --sa-unverifiable: #ffd54f;
     --sa-panel: rgba(255, 255, 255, 0.05);
     --sa-border: rgba(255, 255, 255, 0.2);
@@ -154,6 +156,23 @@
     gap: 0.2rem;
 }
 
+.swade-advancement-dialog .requirement-group {
+    border: 1px dotted var(--sa-border);
+    border-radius: 6px;
+}
+
+.swade-advancement-dialog .requirement-group.met {
+    border-color: var(--sa-met);
+}
+
+.swade-advancement-dialog .requirement-group.unverifiable {
+    border-color: var(--sa-unverifiable);
+}
+
+.swade-advancement-dialog .requirement-group.missing {
+    border-color: var(--sa-missing);
+}
+
 .swade-advancement-dialog .requirement {
     display: flex;
     align-items: center;
@@ -174,6 +193,11 @@
     background: var(--sa-missing-bg);
     color: var(--sa-missing);
     font-weight: bold;
+}
+
+.swade-advancement-dialog .requirement-group.met .requirement.missing {
+    color: var(--sa-missing-group-met);
+    background: none;
 }
 
 .swade-advancement-dialog .requirement .combinator {
