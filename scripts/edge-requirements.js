@@ -28,7 +28,19 @@ export class EdgeRequirements {
         });
 
         const oncePerRankRegex = /once\s+per\s+rank/i;
-        if (edge.system.swid == POWER_POINTS_SWID || oncePerRankRegex.test(Utils.stripHtml(edge.system.description))) {
+        if (edge.system.swid == POWER_POINTS_SWID) {
+            const rank = game.swade.util.getRankFromAdvance(advanceSort);
+            //Characters can take the PP edge as many times as they want once Legendary
+            if (rank !== CONFIG.SWADE.CONST.RANK.LEGENDARY) {
+                const met = !EdgeRequirements.hasEdgeThisRank(actor, edge, advanceSort, advanceData);
+                results.push({
+                    label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
+                    met: met,
+                    missing: !met,
+                    unverifiable: false,
+                });
+            }
+        } else if (oncePerRankRegex.test(Utils.stripHtml(edge.system.description))) {
             const met = !EdgeRequirements.hasEdgeThisRank(actor, edge, advanceSort, advanceData);
             results.push({
                 label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
@@ -149,14 +161,26 @@ export class EdgeRequirements {
     /**
      * Checks if the Power Points edge has already been taken with an advance in the same rank as the provided sort
      */
+    static hasPowerPointsThisRank(actor, edge, advanceSort, advanceData) {
+        const rank = game.swade.util.getRankFromAdvance(advanceSort);
+        if (rank === CONFIG.SWADE.CONST.RANK.LEGENDARY) {
+            //Characters can take the PP edge as many times as they want once Legendary
+            return false;
+        }
+        EdgeRequirements.hasEdgeThisRank(actor, edge, advanceSort, advanceData)
+    }
+
+    /**
+     * Checks if the Power Points edge has already been taken with an advance in the same rank as the provided sort
+     */
     static hasEdgeThisRank(actor, edge, advanceSort, advanceData) {
         const rank = game.swade.util.getRankFromAdvance(advanceSort);
         return actor.system.advances.list.some((advance) => {
-            if (advance.type != ADVANCE_TYPE.EDGE) return false;
-            if (game.swade.util.getRankFromAdvance(advance.sort) != rank) return false;
+            if (advance.type !== ADVANCE_TYPE.EDGE) return false;
+            if (game.swade.util.getRankFromAdvance(advance.sort) !== rank) return false;
 
             const data = advanceData?.[advance.id];
-            if (data?.edgeSwid) return data.edgeSwid == edge.system.swid;
+            if (data?.edgeSwid) return data.edgeSwid === edge.system.swid;
 
             //This advance wasn't created by this module so fall back to checking the notes for the edge name
             return Utils.stripHtml(advance.notes).toLowerCase().includes(edge.name.toLowerCase());

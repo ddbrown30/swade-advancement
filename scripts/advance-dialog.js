@@ -48,7 +48,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     clearSelections() {
-        this.edge = undefined;
+        this.edgeData = undefined;
         this.singleSkill = "";
         this.twoSkills = ["", ""];
         this.attribute = "";
@@ -80,16 +80,15 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
         switch (this.advanceType) {
             case ADVANCE_TYPE.EDGE:
-                context.dropLabel = game.i18n.localize(this.edge ? "SWADE_ADVANCEMENT.DropEdgeReplace" : "SWADE_ADVANCEMENT.DropEdge");
-                if (this.edge) {
-                    const check = EdgeRequirements.check(this.actor, this.edge, advanceSort, Advancement.getAdvanceData(this.actor));
+                context.dropLabel = game.i18n.localize(this.edgeData ? "SWADE_ADVANCEMENT.DropEdgeReplace" : "SWADE_ADVANCEMENT.DropEdge");
+                if (this.edgeData?.edge) {
                     context.edge = {
-                        name: this.edge.name,
-                        img: this.edge.img,
-                        uuid: this.edge.uuid,
-                        groups: check.groups,
+                        name: this.edgeData.edge.name,
+                        img: this.edgeData.edge.img,
+                        uuid: this.edgeData.edge.uuid,
+                        groups: this.edgeData.check.groups,
                     };
-                    context.canAdd = check.met;
+                    context.canAdd = true;
                 }
                 break;
 
@@ -182,7 +181,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                             return;
                         }
 
-                        this.edge = item;
+                        this.setEdge(item);
                         this.render();
                     }
                 });
@@ -201,13 +200,27 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             return;
         }
 
-        this.edge = item;
+        this.setEdge(item);
         this.render();
     }
 
     clearEdge() {
-        this.edge = undefined;
+        this.setEdge(undefined);
         this.render();
+    }
+
+    setEdge(edge) {
+        if (!edge) {
+            this.edgeData = undefined;
+            return;
+        }
+
+        const advanceSort = Advancement.getNextAdvanceSort(this.actor);
+        const check = EdgeRequirements.check(this.actor, edge, advanceSort, Advancement.getAdvanceData(this.actor));
+        this.edgeData = {
+            edge: edge,
+            check: check,
+        }
     }
 
     getAdvanceTypeOptions() {
@@ -359,11 +372,22 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     async add() {
+        if (this.advanceType === ADVANCE_TYPE.EDGE) {
+            if (!this.edgeData?.check.met) {
+                const confirmed = await foundry.applications.api.DialogV2.confirm({
+                    window: { title: "SWADE_ADVANCEMENT.RequirementsWarning.Title" },
+                    content: `<p>${game.i18n.format("SWADE_ADVANCEMENT.RequirementsWarning.Prompt", { name: this.actor.name })}</p>`,
+                    rejectClose: false,
+                });
+                if (!confirmed) return;
+            }
+        }
+
         const addButton = this.element.querySelector('[data-action="add"]');
         if (addButton) addButton.disabled = true;
 
         const selection = {
-            edge: this.edge,
+            edge: this.edgeData?.edge,
             skill: this.singleSkill,
             skills: this.twoSkills,
             attribute: this.attribute,

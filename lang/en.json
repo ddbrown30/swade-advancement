@@ -33,6 +33,11 @@
         "ReducedHindrance": "Reduced {name}"
     },
 
+    "SWADE_ADVANCEMENT.RequirementsWarning": {
+        "Title": "Requirements Not Met",
+        "Prompt": "{name} does not meet the requirements for this edge. Do you wish to add it anyway?"
+    },
+
     "SWADE_ADVANCEMENT.Delete": {
         "Prompt": "Are you sure you want to delete this advance?",
         "PromptUndo": "Are you sure you want to delete this advance? Any changes it made to the character will be undone."
