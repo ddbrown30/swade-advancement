@@ -27,6 +27,17 @@ export class EdgeRequirements {
             };
         });
 
+        const oncePerRankRegex = /once\s+per\s+rank/i;
+        if (edge.system.swid == POWER_POINTS_SWID || oncePerRankRegex.test(Utils.stripHtml(edge.system.description))) {
+            const met = !EdgeRequirements.hasEdgeThisRank(actor, edge, advanceSort, advanceData);
+            results.push({
+                label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
+                met: met,
+                missing: !met,
+                unverifiable: false,
+            });
+        }
+
         //Requirements joined with "or" form a group. A group is met if any of its members are met
         const groups = [];
         for (let i = 0; i < results.length; ++i) {
@@ -43,16 +54,6 @@ export class EdgeRequirements {
             for (const result of group.requirements) {
                 result.isOr = result.combinator == "or" && result != group.requirements[group.requirements.length - 1];
             }
-        }
-
-        if (edge.system.swid == POWER_POINTS_SWID) {
-            const met = !EdgeRequirements.hasPowerPointsThisRank(actor, edge, advanceSort, advanceData);
-            results.push({
-                label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
-                met: met,
-                missing: !met,
-                unverifiable: false,
-            });
         }
 
         return {
@@ -148,14 +149,14 @@ export class EdgeRequirements {
     /**
      * Checks if the Power Points edge has already been taken with an advance in the same rank as the provided sort
      */
-    static hasPowerPointsThisRank(actor, edge, advanceSort, advanceData) {
+    static hasEdgeThisRank(actor, edge, advanceSort, advanceData) {
         const rank = game.swade.util.getRankFromAdvance(advanceSort);
         return actor.system.advances.list.some((advance) => {
             if (advance.type != ADVANCE_TYPE.EDGE) return false;
             if (game.swade.util.getRankFromAdvance(advance.sort) != rank) return false;
 
             const data = advanceData?.[advance.id];
-            if (data?.edgeSwid) return data.edgeSwid == POWER_POINTS_SWID;
+            if (data?.edgeSwid) return data.edgeSwid == edge.system.swid;
 
             //This advance wasn't created by this module so fall back to checking the notes for the edge name
             return Utils.stripHtml(advance.notes).toLowerCase().includes(edge.name.toLowerCase());

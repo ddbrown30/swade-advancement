@@ -24,7 +24,7 @@
         "None": "This edge has no requirements.",
         "Or": "or",
         "Unverifiable": "This requirement can't be checked automatically",
-        "PowerPointsOncePerRank": "Can only be taken once per rank"
+        "OncePerRank": "Can only be taken once per rank"
     },
 
     "SWADE_ADVANCEMENT.Notes": {
