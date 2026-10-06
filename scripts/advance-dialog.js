@@ -424,10 +424,10 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     activateListeners() {
         if (this.editingDescription) {
-            const textarea = this.element.querySelector("textarea.advance-description");
-            textarea?.addEventListener("input", (event) => {
-                //Not rendered again so that the cursor stays where it is. Only the save button needs to follow the text
-                this.descriptionDraft = event.target.value;
+            const editor = this.element.querySelector("prose-mirror.advance-description");
+            editor?.addEventListener("change", () => {
+                //A prose-mirror dispatches change when the user saves in the editor. It isn't rendered again so that the editor keeps its state
+                this.descriptionDraft = editor.value;
                 const submitButton = this.element.querySelector('[data-action="submit"]');
                 if (submitButton) submitButton.disabled = !this.isDescriptionChanged;
             });
