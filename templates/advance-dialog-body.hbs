@@ -112,4 +112,15 @@
             <p class="hint">{{localize "SWADE_ADVANCEMENT.NoHindrances"}}</p>
         {{/unless}}
     {{/if}}
+
+    {{#if warnings.length}}
+        <div class="advance-warnings">
+            <p class="advance-warnings-header"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{localize "SWADE_ADVANCEMENT.Issues.Header"}}</p>
+            <ul>
+                {{#each warnings}}
+                    <li>{{this}}</li>
+                {{/each}}
+            </ul>
+        </div>
+    {{/if}}
 </section>

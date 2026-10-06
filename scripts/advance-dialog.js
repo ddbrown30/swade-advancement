@@ -1,6 +1,7 @@
 import { NAME, DEFAULT_CONFIG, ADVANCE_TYPE, ADVANCE_TYPE_LABELS, SKILL_SOURCE } from "./module-config.js";
 import { Utils } from "./utils.js";
 import { Advancement } from "./advancement.js";
+import { AdvanceHistory } from "./advance-history.js";
 import { EdgeRequirements } from "./edge-requirements.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -12,7 +13,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         window: { title: "SWADE_ADVANCEMENT.AddAdvance", icon: "fa-solid fa-arrow-trend-up" },
         position: { width: 420, height: "auto" },
         actions: {
-            add: function (event, button) { this.add(); },
+            submit: function (event, button) { this.submit(); },
             cancel: function (event, button) { this.close(); },
             clearEdge: function (event, button) { this.clearEdge(); },
         },
@@ -39,24 +40,195 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         super(options);
 
         this.actor = options.actor;
-        this.advanceType = ADVANCE_TYPE.EDGE;
-        this.clearSelections();
+        this.loadAdvance(options.advanceId);
     }
 
     get title() {
-        return `${game.i18n.localize(this.options.window.title)}: ${this.actor.name}`;
+        const key = this.advanceId ? "SWADE_ADVANCEMENT.EditAdvance" : this.options.window.title;
+        return `${game.i18n.localize(key)}: ${this.actor.name}`;
+    }
+
+    /**
+     * The advance being edited or undefined if a new advance is being added
+     */
+    get advance() {
+        return this.advanceId ? this.actor.system.advances.list.get(this.advanceId) : undefined;
+    }
+
+    /**
+     * Points the dialog at an advance to edit, or at a new advance if no id is provided, and discards any selections
+     */
+    loadAdvance(advanceId) {
+        this.advanceId = advanceId;
+        this.advanceType = ADVANCE_TYPE.EDGE;
+        this.skillCatalog = undefined;
+        this.initial = undefined;
+        this.clearSelections();
+        this.initFromAdvance();
+        this.refreshState();
+    }
+
+    /**
+     * Switches an open dialog to a different advance
+     */
+    showAdvance(advanceId) {
+        this.loadAdvance(advanceId);
+        if (this.window?.title) this.window.title.textContent = this.title;
+        this.render();
+    }
+
+    /**
+     * Works out the sort of the advance and the state of the actor before the advance is applied.
+     */
+    refreshState() {
+        this.advanceSort = this.advance?.sort ?? Advancement.getNextAdvanceSort(this.actor);
+        this.actorState = Advancement.getActorState(this.actor, this.advanceId);
     }
 
     clearSelections() {
-        this.edgeData = undefined;
+        this.edge = undefined;
         this.singleSkill = "";
         this.twoSkills = ["", ""];
         this.attribute = "";
         this.hindrance = "";
     }
 
+    /**
+     * Gets the dropdown value for a skill stored in an advance's data.
+     * Skills the advance added are not on the actor in the state before the advance so they are offered as new skills.
+     */
+    static getAdvanceSkillValue(skillData) {
+        if (!skillData) return "";
+        if (skillData.created) return skillData.sourceUuid ? `${SKILL_SOURCE.new}:${skillData.sourceUuid}` : "";
+        return `${SKILL_SOURCE.owned}:${skillData.id}`;
+    }
+
+    /**
+     * Populates the selections from the advance being edited
+     */
+    initFromAdvance() {
+        if (!this.advanceId) return;
+
+        const advance = this.advance;
+        if (!advance) {
+            this.advanceId = undefined;
+            return;
+        }
+
+        //Advances that weren't created by this module have no data so all we know is their type
+        if (advance.type in ADVANCE_TYPE_LABELS) {
+            this.advanceType = Number(advance.type);
+        }
+
+        const data = Advancement.getAdvanceData(this.actor)[this.advanceId];
+        if (!data) return;
+
+        this.advanceType = data.type;
+        switch (data.type) {
+            case ADVANCE_TYPE.EDGE:
+                this.edge = this.actor.items.get(data.edgeId);
+                break;
+
+            case ADVANCE_TYPE.SINGLE_SKILL:
+                //A single skill advance can't create a skill. It only looks like it did if an earlier advance was changed.
+                //There is no valid choice to show, so leave it blank
+                this.singleSkill = data.skills?.[0]?.created ? "" : AdvanceDialog.getAdvanceSkillValue(data.skills?.[0]);
+                break;
+
+            case ADVANCE_TYPE.TWO_SKILLS:
+                this.twoSkills = [0, 1].map((i) => AdvanceDialog.getAdvanceSkillValue(data.skills?.[i]));
+                break;
+
+            case ADVANCE_TYPE.ATTRIBUTE:
+                this.attribute = data.attribute;
+                break;
+
+            case ADVANCE_TYPE.HINDRANCE:
+                this.hindrance = data.hindranceId;
+                break;
+        }
+
+        this.initial = this.getSelection();
+    }
+
+    /**
+     * Gets the current selections as plain data. Used to tell if an edit has changed anything
+     */
+    getSelection() {
+        return {
+            type: this.advanceType,
+            edge: this.edge?.uuid ?? "",
+            skill: this.singleSkill,
+            skills: [...this.twoSkills],
+            attribute: this.attribute,
+            hindrance: this.hindrance,
+        };
+    }
+
+    /**
+     * True if editing and the selections are the same as the ones the advance already has
+     */
+    get isUnchanged() {
+        return !!this.initial && JSON.stringify(this.initial) == JSON.stringify(this.getSelection());
+    }
+
+    /**
+     * Checks if a skill is one of the choices the advance being edited already has.
+     * These are always offered, even if the rules would no longer allow them (e.g. a later advance raised the linked attribute),
+     * so editing never silently drops an existing choice
+     */
+    isOriginalSkill(source, id) {
+        return !!this.initial && [this.initial.skill, ...this.initial.skills].includes(`${source}:${id}`);
+    }
+
+    checkEdge() {
+        if (!this.edge) return;
+        return EdgeRequirements.check(this.actorState, this.edge, this.advanceSort, AdvanceHistory.getEntries(this.actor), this.advanceId);
+    }
+
+    /**
+     * Gets the selections in the form the advancement code expects
+     */
+    getApplySelection() {
+        return {
+            edge: this.edge,
+            skill: this.singleSkill,
+            skills: this.twoSkills,
+            attribute: this.attribute,
+            hindrance: this.hindrance,
+        };
+    }
+
+    /**
+     * Gets the problems that saving the current selections would cause for the advances after the one being edited. Problems that
+     * were already there are not included. Nothing is returned when adding since new advances go at the end
+     * @returns {Promise<Array<Object>>} The issues from AdvanceHistory.plan()
+     */
+    async getIssues() {
+        if (!this.advanceId || this.isUnchanged) return [];
+
+        try {
+            const plan = await AdvanceHistory.plan(this.actor, {
+                kind: "edit",
+                advanceId: this.advanceId,
+                type: this.advanceType,
+                selection: this.getApplySelection(),
+            });
+            return plan?.issues ?? [];
+        } catch (error) {
+            Utils.consoleMessage("error", { objects: [error], message: "Failed to check the effects of the change" });
+            return [];
+        }
+    }
+
     async _prepareContext(_options) {
-        const advanceSort = Advancement.getNextAdvanceSort(this.actor);
+        //The advance may have been deleted while the dialog was open
+        if (this.advanceId && !this.advance) {
+            this.loadAdvance(undefined);
+        }
+        this.refreshState();
+
+        const advanceSort = this.advanceSort;
         const advanceTypes = this.getAdvanceTypeOptions();
         if (!advanceTypes.find((t) => t.id == this.advanceType)) {
             this.advanceType = advanceTypes[0].id;
@@ -74,28 +246,30 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             isAttribute: this.advanceType == ADVANCE_TYPE.ATTRIBUTE,
             isHindrance: this.advanceType == ADVANCE_TYPE.HINDRANCE,
             placeholder: game.i18n.localize("SWADE_ADVANCEMENT.SelectPlaceholder"),
-            canAdd: false,
+            canSubmit: false,
+            submitLabel: game.i18n.localize(this.advanceId ? "SWADE_ADVANCEMENT.Save" : "SWADE_ADVANCEMENT.Add"),
+            submitIcon: this.advanceId ? "fa-solid fa-floppy-disk" : "fa-solid fa-plus",
             showItemBrowser: !!game.itemBrowser,
         };
 
         switch (this.advanceType) {
             case ADVANCE_TYPE.EDGE:
-                context.dropLabel = game.i18n.localize(this.edgeData ? "SWADE_ADVANCEMENT.DropEdgeReplace" : "SWADE_ADVANCEMENT.DropEdge");
-                if (this.edgeData?.edge) {
+                context.dropLabel = game.i18n.localize(this.edge ? "SWADE_ADVANCEMENT.DropEdgeReplace" : "SWADE_ADVANCEMENT.DropEdge");
+                if (this.edge) {
                     context.edge = {
-                        name: this.edgeData.edge.name,
-                        img: this.edgeData.edge.img,
-                        uuid: this.edgeData.edge.uuid,
-                        groups: this.edgeData.check.groups,
+                        name: this.edge.name,
+                        img: this.edge.img,
+                        uuid: this.edge.uuid,
+                        groups: this.checkEdge().groups,
                     };
-                    context.canAdd = true;
+                    context.canSubmit = true;
                 }
                 break;
 
             case ADVANCE_TYPE.SINGLE_SKILL:
                 context.skillOptions = this.getSingleSkillOptions();
                 context.singleSkill = this.singleSkill;
-                context.canAdd = !!this.singleSkill;
+                context.canSubmit = !!this.singleSkill;
                 break;
 
             case ADVANCE_TYPE.TWO_SKILLS: {
@@ -107,21 +281,25 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                     options: options.filter((o) => o.id != this.twoSkills[1 - index]),
                     selected: this.twoSkills[index],
                 }));
-                context.canAdd = !!this.twoSkills[0] && !!this.twoSkills[1];
+                context.canSubmit = !!this.twoSkills[0] && !!this.twoSkills[1];
                 break;
             }
 
             case ADVANCE_TYPE.ATTRIBUTE:
                 context.attributeOptions = this.getAttributeOptions();
                 context.attribute = this.attribute;
-                context.canAdd = !!this.attribute;
+                context.canSubmit = !!this.attribute;
                 break;
 
             case ADVANCE_TYPE.HINDRANCE:
                 context.hindranceOptions = this.getHindranceOptions();
                 context.hindrance = this.hindrance;
-                context.canAdd = !!this.hindrance;
+                context.canSubmit = !!this.hindrance;
                 break;
+        }
+
+        if (context.canSubmit) {
+            context.warnings = AdvanceHistory.describeIssues(await this.getIssues());
         }
 
         return context;
@@ -181,7 +359,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                             return;
                         }
 
-                        this.setEdge(item);
+                        this.edge = item;
                         this.render();
                     }
                 });
@@ -200,52 +378,35 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             return;
         }
 
-        this.setEdge(item);
+        this.edge = item;
         this.render();
     }
 
     clearEdge() {
-        this.setEdge(undefined);
+        this.edge = undefined;
         this.render();
     }
 
-    setEdge(edge) {
-        if (!edge) {
-            this.edgeData = undefined;
-            return;
-        }
-
-        const advanceSort = Advancement.getNextAdvanceSort(this.actor);
-        const check = EdgeRequirements.check(this.actor, edge, advanceSort, Advancement.getAdvanceData(this.actor));
-        this.edgeData = {
-            edge: edge,
-            check: check,
-        }
-    }
-
     getAdvanceTypeOptions() {
-        const hasAttributeAdvance = Advancement.hasAttributeAdvanceThisRank(this.actor);
+        //The advance being edited doesn't count against the once per rank limit
+        const hasAttributeAdvance = Advancement.hasAttributeAdvanceThisRank(this.actor, this.advanceSort, this.advanceId);
         return Object.entries(ADVANCE_TYPE_LABELS)
             .filter(([type]) => !(Number(type) == ADVANCE_TYPE.ATTRIBUTE && hasAttributeAdvance))
             .map(([type, label]) => ({ id: Number(type), label: game.i18n.localize(label) }));
     }
 
     /**
-     * Gets the actor's skills along with their unmodified die and the unmodified die of their linked attribute
+     * Gets the skills the actor had before this advance along with their unmodified die and the unmodified die of their linked attribute
      */
     getOwnedSkills() {
-        return this.actor.items.filter((i) =>   i.type == "skill" &&
-                                                !i.name.toLowerCase().includes("unskilled") &&
-                                                !i.name.toLowerCase().includes("untrained"))
-            .map((skill) => {
-                const attribute = skill.system.attribute;
-                return {
-                    skill: skill,
-                    die: Utils.getBaseSkillDie(skill),
-                    attributeDie: attribute && this.actor.system.attributes?.[attribute] ? Utils.getBaseAttributeDie(this.actor, attribute) : undefined,
-                };
-            }
-        ).sort((a, b) => a.skill.name.localeCompare(b.skill.name));
+        return this.actorState.skills.filter((s) => !s.name.toLowerCase().includes("unskilled") &&
+                                               !s.name.toLowerCase().includes("untrained"))
+            .map((skill) => ({
+                skill: skill,
+                die: skill.die,
+                attributeDie: skill.attribute ? this.actorState.attributes[skill.attribute] : undefined,
+            }))
+            .sort((a, b) => a.skill.name.localeCompare(b.skill.name));
     }
 
     /**
@@ -262,7 +423,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     getSingleSkillOptions() {
         return this.getOwnedSkills()
-            .filter((s) => !s.attributeDie || s.die.sides >= 12 || s.die.sides >= s.attributeDie.sides)
+            .filter((s) => !s.attributeDie || s.die.sides >= 12 || s.die.sides >= s.attributeDie.sides || this.isOriginalSkill(SKILL_SOURCE.owned, s.skill.id))
             .map((s) => AdvanceDialog.buildDieOption(`${SKILL_SOURCE.owned}:${s.skill.id}`, s.skill.name, s.die, Utils.increaseDie(s.die)));
     }
 
@@ -271,12 +432,12 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     async getTwoSkillOptions() {
         const owned = this.getOwnedSkills()
-            .filter((s) => !s.attributeDie || (s.die.sides < 12 && s.die.sides < s.attributeDie.sides))
+            .filter((s) => !s.attributeDie || (s.die.sides < 12 && s.die.sides < s.attributeDie.sides) || this.isOriginalSkill(SKILL_SOURCE.owned, s.skill.id))
             .map((s) => AdvanceDialog.buildDieOption(`${SKILL_SOURCE.owned}:${s.skill.id}`, s.skill.name, s.die, Utils.increaseDie(s.die)))
             .sort((a, b) => a.label.localeCompare(b.label));
 
-        this.unownedSkills ??= await this.getUnownedSkills();
-        const unowned = this.unownedSkills
+        this.skillCatalog ??= await this.getSkillCatalog();
+        const unowned = this.getUnownedSkills(this.skillCatalog)
             .map((s) => AdvanceDialog.buildDieOption(`${SKILL_SOURCE.new}:${s.uuid}`, s.name, undefined, { sides: 4, modifier: 0 }))
             .sort((a, b) => a.label.localeCompare(b.label));
 
@@ -286,13 +447,10 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /**
-     * Gathers all skills from the world and compendiums that the actor does not have
+     * Gathers every skill from the world and compendiums, keeping the highest priority version of each. This doesn't depend on
+     * what the actor owns so it is only built once. Which of them are unowned is worked out each time the options are built.
      */
-    async getUnownedSkills() {
-        const ownedSkills = this.actor.items.filter((i) => i.type == "skill");
-        const ownedNames = new Set(ownedSkills.map((s) => s.name.toLowerCase()));
-        const ownedSwids = new Set(ownedSkills.map((s) => s.system.swid).filter((s) => s));
-
+    async getSkillCatalog() {
         let skills = game.items.filter((i) => i.type == "skill").map((i) => ({ uuid: i.uuid, name: i.name, swid: i.system.swid }));
 
         for (const pack of game.packs) {
@@ -312,7 +470,31 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         //Remove duplicates, keeping the highest priority version of each skill
         skills = skills.filter((skill, idx, array) => idx == 0 || skill.name.toLowerCase() != array[idx - 1].name.toLowerCase());
 
-        return skills.filter((s) => !ownedNames.has(s.name.toLowerCase()) && !(s.swid && ownedSwids.has(s.swid)));
+        //Skills added by the advance being edited must be offered from the source they were originally added from. This keeps the existing
+        //selection valid even if a different version of the skill would be chosen now
+        const data = this.advanceId ? Advancement.getAdvanceData(this.actor)[this.advanceId] : undefined;
+        for (const created of (data?.skills ?? []).filter((s) => s.created && s.sourceUuid)) {
+            const entry = { uuid: created.sourceUuid, name: created.name, swid: created.swid };
+            const index = skills.findIndex((s) => s.name.toLowerCase() == created.name.toLowerCase());
+            if (index >= 0) {
+                skills[index] = entry;
+            } else {
+                skills.push(entry);
+            }
+        }
+
+        return skills;
+    }
+
+    /**
+     * Filters the skill catalog down to the skills the actor does not have in the state before this advance
+     */
+    getUnownedSkills(catalog) {
+        const ownedSkills = this.actorState.skills;
+        const ownedNames = new Set(ownedSkills.map((s) => s.name.toLowerCase()));
+        const ownedSwids = new Set(ownedSkills.map((s) => s.swid).filter((s) => s));
+
+        return catalog.filter((s) => !ownedNames.has(s.name.toLowerCase()) && !(s.swid && ownedSwids.has(s.swid)));
     }
 
     /**
@@ -357,23 +539,29 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     getAttributeOptions() {
         return Object.keys(CONFIG.SWADE.attributes).map((attribute) => {
-            const die = Utils.getBaseAttributeDie(this.actor, attribute);
+            const die = this.actorState.attributes[attribute];
             return AdvanceDialog.buildDieOption(attribute, Utils.getAttributeName(attribute), die, Utils.increaseDie(die));
         });
     }
 
     getHindranceOptions() {
-        return this.actor.items.filter((i) => i.type == "hindrance")
+        return this.actorState.hindrances
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((hindrance) => {
-                const severity = game.i18n.localize(hindrance.system.isMajor ? "SWADE_ADVANCEMENT.Major" : "SWADE_ADVANCEMENT.Minor");
+                const severity = game.i18n.localize(hindrance.isMajor ? "SWADE_ADVANCEMENT.Major" : "SWADE_ADVANCEMENT.Minor");
                 return { id: hindrance.id, label: `${hindrance.name} ${severity}` };
             });
     }
 
-    async add() {
+    async submit() {
+        //Nothing to do if an edit didn't change anything. This also avoids needlessly deleting and recreating an edge
+        if (this.isUnchanged) {
+            this.close();
+            return;
+        }
+
         if (this.advanceType === ADVANCE_TYPE.EDGE) {
-            if (!this.edgeData?.check.met) {
+            if (!this.checkEdge()?.met) {
                 const confirmed = await foundry.applications.api.DialogV2.confirm({
                     window: { title: "SWADE_ADVANCEMENT.RequirementsWarning.Title" },
                     content: `<p>${game.i18n.format("SWADE_ADVANCEMENT.RequirementsWarning.Prompt", { name: this.actor.name })}</p>`,
@@ -383,28 +571,31 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             }
         }
 
-        const addButton = this.element.querySelector('[data-action="add"]');
-        if (addButton) addButton.disabled = true;
-
-        const selection = {
-            edge: this.edgeData?.edge,
-            skill: this.singleSkill,
-            skills: this.twoSkills,
-            attribute: this.attribute,
-            hindrance: this.hindrance,
-        };
-
-        let added = false;
-        try {
-            added = await Advancement.addAdvance(this.actor, this.advanceType, selection);
-        } catch (error) {
-            Utils.consoleMessage("error", { objects: [error], message: "Failed to add advance" });
+        //Changing an advance can break the advances after it. The user can still submit if they want
+        if (this.advanceId) {
+            const issues = await this.getIssues();
+            if (issues.length && !(await Advancement.confirmIssues(issues, "SWADE_ADVANCEMENT.IssuesWarning.EditPrompt"))) return;
         }
 
-        if (added) {
+        const submitButton = this.element.querySelector('[data-action="submit"]');
+        if (submitButton) submitButton.disabled = true;
+
+        const selection = this.getApplySelection();
+
+        const editing = !!this.advanceId;
+        let success = false;
+        try {
+            success = editing
+                ? await Advancement.editAdvance(this.actor, this.advanceId, this.advanceType, selection)
+                : await Advancement.addAdvance(this.actor, this.advanceType, selection);
+        } catch (error) {
+            Utils.consoleMessage("error", { objects: [error], message: editing ? "Failed to edit advance" : "Failed to add advance" });
+        }
+
+        if (success) {
             this.close();
         } else {
-            Utils.showNotification("error", game.i18n.localize("SWADE_ADVANCEMENT.Warnings.AddFailed"));
+            Utils.showNotification("error", game.i18n.localize(editing ? "SWADE_ADVANCEMENT.Warnings.EditFailed" : "SWADE_ADVANCEMENT.Warnings.AddFailed"));
             this.render();
         }
     }

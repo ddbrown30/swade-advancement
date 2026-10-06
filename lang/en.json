@@ -1,8 +1,10 @@
 {
     "SWADE_ADVANCEMENT.AddAdvance": "Add Advance",
+    "SWADE_ADVANCEMENT.EditAdvance": "Edit Advance",
     "SWADE_ADVANCEMENT.AdvanceNumber": "Advance {number}",
     "SWADE_ADVANCEMENT.AdvanceType": "Type",
     "SWADE_ADVANCEMENT.Add": "Add",
+    "SWADE_ADVANCEMENT.Save": "Save",
     "SWADE_ADVANCEMENT.Cancel": "Cancel",
     "SWADE_ADVANCEMENT.SelectPlaceholder": "— Select —",
     "SWADE_ADVANCEMENT.Skill": "Skill",
@@ -49,6 +51,25 @@
 
     "SWADE_ADVANCEMENT.Warnings": {
         "NotAnEdge": "Only edges can be dropped here.",
-        "AddFailed": "The advance could not be added."
+        "AddFailed": "The advance could not be added.",
+        "EditFailed": "The advance could not be updated. Some of its changes may have been applied to the character.",
+        "DeleteFailed": "The advance could not be deleted. Some of its changes may have been undone."
+    },
+
+    "SWADE_ADVANCEMENT.Issues": {
+        "Header": "This change affects later advances",
+        "Advance": "Advance {number}",
+        "EdgeRequirements": "{name} would no longer meet its requirements ({requirements})",
+        "SkillMissing": "{name} is raised with a single skill advance but the character would not have the skill yet",
+        "SingleNotEligible": "{name} would be below its linked attribute so it can't be raised with a single skill advance",
+        "TwoNotEligible": "{name} would no longer be below its linked attribute so it can't be raised with a two skills advance",
+        "AttributeTwice": "This would be a second attribute increase in the same rank",
+        "HindranceMissing": "{name} would already be gone so there is nothing left to decrease"
+    },
+
+    "SWADE_ADVANCEMENT.IssuesWarning": {
+        "Title": "Later Advances Affected",
+        "EditPrompt": "Saving this change causes the following problems with later advances. Do you wish to save it anyway?",
+        "DeletePrompt": "Deleting this advance causes the following problems. Do you wish to delete it anyway?"
     }
 }

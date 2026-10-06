@@ -1,6 +1,6 @@
 <footer class="advance-dialog-footer">
-    <button type="button" data-action="add" {{#unless canAdd}}disabled{{/unless}}>
-        <i class="fa-solid fa-plus" aria-hidden="true"></i>{{localize "SWADE_ADVANCEMENT.Add"}}
+    <button type="button" data-action="submit" {{#unless canSubmit}}disabled{{/unless}}>
+        <i class="{{submitIcon}}" aria-hidden="true"></i>{{submitLabel}}
     </button>
     <button type="button" data-action="cancel">
         <i class="fa-solid fa-xmark" aria-hidden="true"></i>{{localize "SWADE_ADVANCEMENT.Cancel"}}

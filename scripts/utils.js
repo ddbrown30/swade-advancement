@@ -147,6 +147,15 @@ export class Utils {
     }
 
     /**
+     * Escapes the provided text so it can be put in html
+     */
+    static escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text ?? "";
+        return div.innerHTML;
+    }
+
+    /**
      * Strips any html from the provided string
      */
     static stripHtml(html) {

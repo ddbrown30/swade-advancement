@@ -218,3 +218,27 @@
 .swade-advancement-dialog .advance-dialog-footer button {
     flex: 1;
 }
+
+/* Problems the change would cause for later advances. Only shown when there are some */
+.swade-advancement-dialog .advance-warnings {
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--sa-missing);
+    border-radius: 6px;
+    background: var(--sa-missing-bg);
+}
+
+.swade-advancement-dialog .advance-warnings-header {
+    margin: 0 0 0.25rem;
+    font-weight: bold;
+    color: var(--sa-missing);
+}
+
+.swade-advancement-dialog .advance-warnings ul {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.swade-advancement-issues {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}

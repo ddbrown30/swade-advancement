@@ -8,16 +8,17 @@ export class EdgeRequirements {
 
     /**
      * Checks all of the edge's requirements against the actor
-     * @param {Actor} actor The actor taking the edge
+     * @param {ActorState} state The actor as it is before the advance is applied
      * @param {Item} edge The edge being taken
      * @param {Number} advanceSort The sort position of the advance the edge is being taken with
-     * @param {Object} advanceData The module's stored advance data, used for the Power Points check
+     * @param {Array<Object>} history The advances to check the once per rank rule against, see AdvanceHistory.getEntries()
+     * @param {String} [excludeAdvanceId] An advance to ignore for the once per rank checks. Used when editing so an advance doesn't conflict with itself
      * @returns {{met: Boolean, requirements: Array<{label: String, met: Boolean, unverifiable: Boolean}>}}
      */
-    static check(actor, edge, advanceSort, advanceData) {
+    static check(state, edge, advanceSort, history, excludeAdvanceId) {
         const requirements = edge.system.requirements ?? [];
         const results = requirements.map((r) => {
-            const result = EdgeRequirements.checkRequirement(actor, r, advanceSort);
+            const result = EdgeRequirements.checkRequirement(state, r, advanceSort);
             return {
                 label: EdgeRequirements.getRequirementLabel(r),
                 met: result.met,
@@ -32,7 +33,7 @@ export class EdgeRequirements {
             const rank = game.swade.util.getRankFromAdvance(advanceSort);
             //Characters can take the PP edge as many times as they want once Legendary
             if (rank !== CONFIG.SWADE.CONST.RANK.LEGENDARY) {
-                const met = !EdgeRequirements.hasEdgeThisRank(actor, edge, advanceSort, advanceData);
+                const met = !EdgeRequirements.hasEdgeThisRank(history, edge, advanceSort, excludeAdvanceId);
                 results.push({
                     label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
                     met: met,
@@ -41,7 +42,7 @@ export class EdgeRequirements {
                 });
             }
         } else if (oncePerRankRegex.test(Utils.stripHtml(edge.system.description))) {
-            const met = !EdgeRequirements.hasEdgeThisRank(actor, edge, advanceSort, advanceData);
+            const met = !EdgeRequirements.hasEdgeThisRank(history, edge, advanceSort, excludeAdvanceId);
             results.push({
                 label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
                 met: met,
@@ -94,12 +95,12 @@ export class EdgeRequirements {
      * Checks a single requirement against the actor
      * @returns {{met: Boolean, unverifiable: Boolean}}
      */
-    static checkRequirement(actor, requirement, advanceSort) {
+    static checkRequirement(state, requirement, advanceSort) {
         const req = { ...requirement };
         const hasItem = (type) => {
-            return actor.items.some((i) => {
+            return state.items.some((i) => {
                 if (i.type != type) return false;
-                if (req.selector && i.system.swid == req.selector) return true;
+                if (req.selector && i.swid == req.selector) return true;
                 return !!req.label && i.name.toLowerCase().startsWith(req.label.toLowerCase());
             });
         };
@@ -110,21 +111,21 @@ export class EdgeRequirements {
 
         switch (req.type) {
             case "wildCard":
-                return { met: actor.isWildcard == !!req.value, unverifiable: false };
+                return { met: state.isWildcard == !!req.value, unverifiable: false };
             case "rank": {
                 const requiredRank = EdgeRequirements.getRequiredRankIndex(req.value);
                 if (requiredRank < 0) return { met: true, unverifiable: true };
                 return { met: game.swade.util.getRankFromAdvance(advanceSort) >= requiredRank, unverifiable: false };
             }
             case "attribute": {
-                const die = Utils.getBaseAttributeDie(actor, req.selector);
+                const die = state.attributes[req.selector];
                 if (!die) return { met: false, unverifiable: false };
                 return { met: die.sides >= Number(req.value), unverifiable: false };
             }
             case "skill": {
-                const skill = actor.items.find((i) => i.type == "skill" && (i.system.swid == req.selector || i.name.toLowerCase() == req.label?.toLowerCase()));
+                const skill = state.skills.find((i) => i.swid == req.selector || i.name.toLowerCase() == req.label?.toLowerCase());
                 if (!skill) return { met: false, unverifiable: false };
-                return { met: Utils.getBaseSkillDie(skill).sides >= Number(req.value), unverifiable: false };
+                return { met: skill.die.sides >= Number(req.value), unverifiable: false };
             }
             case "edge":
                 if (req.label.includes("at least")){
@@ -159,27 +160,18 @@ export class EdgeRequirements {
     }
 
     /**
-     * Checks if the Power Points edge has already been taken with an advance in the same rank as the provided sort
+     * Checks if the edge has already been taken with an advance in the same rank as the provided sort
+     * @param {Array<Object>} history Advances in the form { id, type, sort, notes, data } where data has the edgeSwid for edges added by this module
+     * @param {String} [excludeAdvanceId] An advance to ignore
      */
-    static hasPowerPointsThisRank(actor, edge, advanceSort, advanceData) {
+    static hasEdgeThisRank(history, edge, advanceSort, excludeAdvanceId) {
         const rank = game.swade.util.getRankFromAdvance(advanceSort);
-        if (rank === CONFIG.SWADE.CONST.RANK.LEGENDARY) {
-            //Characters can take the PP edge as many times as they want once Legendary
-            return false;
-        }
-        EdgeRequirements.hasEdgeThisRank(actor, edge, advanceSort, advanceData)
-    }
-
-    /**
-     * Checks if the Power Points edge has already been taken with an advance in the same rank as the provided sort
-     */
-    static hasEdgeThisRank(actor, edge, advanceSort, advanceData) {
-        const rank = game.swade.util.getRankFromAdvance(advanceSort);
-        return actor.system.advances.list.some((advance) => {
+        return history.some((advance) => {
+            if (advance.id == excludeAdvanceId) return false;
             if (advance.type !== ADVANCE_TYPE.EDGE) return false;
             if (game.swade.util.getRankFromAdvance(advance.sort) !== rank) return false;
 
-            const data = advanceData?.[advance.id];
+            const data = advance.data;
             if (data?.edgeSwid) return data.edgeSwid === edge.system.swid;
 
             //This advance wasn't created by this module so fall back to checking the notes for the edge name
