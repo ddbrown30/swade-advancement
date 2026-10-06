@@ -8,7 +8,7 @@
                     <i class="{{toggleIcon}}" aria-hidden="true"></i>{{toggleLabel}}
                 </button>
             {{/if}}
-            <div class="form-group advance-planned-group" data-tooltip="{{localize "SWADE_ADVANCEMENT.PlannedHint"}}">
+            <div class="form-group advance-planned-group" data-tooltip="{{localize " SWADE_ADVANCEMENT.PlannedHint"}}">
                 <i class="fa-solid fa-hourglass"></i>
                 <div class="form-fields">
                     <input type="checkbox" id="advance-planned" class="advance-planned" {{checked planned}} {{#if plannedLocked}}disabled{{/if}}>
@@ -27,128 +27,135 @@
         </div>
     {{else}}
 
-    {{#if loadedNote}}
-        <p class="advance-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{loadedNote}}</p>
-    {{/if}}
-
-    <div class="form-group">
-        <label for="advance-type">{{localize "SWADE_ADVANCEMENT.AdvanceType"}}</label>
-        <div class="form-fields">
-            <select id="advance-type" class="advance-type">
-                {{selectOptions advanceTypes selected=advanceType valueAttr="id" labelAttr="label"}}
-            </select>
-        </div>
-    </div>
-
-    {{#if isEdge}}
-        {{#if edge}}
-            <div class="selected-edge">
-                <div class="edge-header">
-                    <img src="{{edge.img}}" alt="{{edge.name}}">
-                    <span class="edge-name">{{edge.name}}</span>
-                    <button type="button" class="icon fa-solid fa-xmark" data-action="clearEdge" data-tooltip="{{localize 'SWADE_ADVANCEMENT.ClearEdge'}}" aria-label="{{localize 'SWADE_ADVANCEMENT.ClearEdge'}}"></button>
-                </div>
-                {{#if edge.groups.length}}
-                    <div class="edge-requirements">
-                        {{#each edge.groups as | group |}}
-                            {{#if (gt group.requirements.length 1)}}
-                                <div class="requirement-group {{#if group.missing}}missing{{else if group.unverifiable}}unverifiable{{else}}met{{/if}}">
-                            {{/if}}
-                            {{#each group.requirements}}
-                                <div class="requirement {{#if missing}}missing{{else if unverifiable}}unverifiable{{else}}met{{/if}}">
-                                    {{#if missing}}
-                                        <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
-                                    {{else if unverifiable}}
-                                        <i class="fa-solid fa-circle-question" aria-hidden="true" data-tooltip="{{localize 'SWADE_ADVANCEMENT.Requirements.Unverifiable'}}"></i>
-                                    {{else}}
-                                        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-                                    {{/if}}
-                                    <span>{{label}}</span>
-                                    {{#if isOr}}<span class="combinator">{{localize "SWADE_ADVANCEMENT.Requirements.Or"}}</span>{{/if}}
-                                </div>
-                            {{/each}}
-                            {{#if (gt requirements.length 1)}}
-                                </div>
-                            {{/if}}
-                        {{/each}}
-                    </div>
-                {{else}}
-                    <p class="no-requirements">{{localize "SWADE_ADVANCEMENT.Requirements.None"}}</p>
-                {{/if}}
-            </div>
+        {{#if loadedNote}}
+            <p class="advance-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{loadedNote}}</p>
         {{/if}}
-        <div class="edge-drop-zone {{#if edge}}compact{{/if}}">
-            <i class="fa-solid fa-hand-pointer" aria-hidden="true"></i>
-            <span>{{dropLabel}}</span>
-        </div>
-        {{#if showItemBrowser}}
-            <div class="item-browser-button flexrow">
-                <button class="open-item-browser-button"><i class="fas fa-folder-gear"></i> {{{localize "SWADE_ADVANCEMENT.OpenItemBrowser"}}}</button>
-            </div>
-        {{/if}}
-    {{/if}}
 
-    {{#if isSingleSkill}}
         <div class="form-group">
-            <label for="single-skill">{{localize "SWADE_ADVANCEMENT.Skill"}}</label>
+            <label for="advance-type">{{localize "SWADE_ADVANCEMENT.AdvanceType"}}</label>
             <div class="form-fields">
-                <select id="single-skill" data-selection="singleSkill">
-                    {{selectOptions skillOptions selected=singleSkill blank=placeholder valueAttr="id" labelAttr="label"}}
+                <select id="advance-type" class="advance-type">
+                    {{selectOptions advanceTypes selected=advanceType valueAttr="id" labelAttr="label"}}
                 </select>
             </div>
         </div>
-        {{#unless skillOptions.length}}
-            <p class="hint">{{localize "SWADE_ADVANCEMENT.NoSkills"}}</p>
-        {{/unless}}
-    {{/if}}
 
-    {{#if isTwoSkills}}
-        {{#each skillSelects}}
+        {{#if isEdge}}
+            {{#if edge}}
+                <div class="selected-edge">
+                    <div class="edge-header">
+                        <img src="{{edge.img}}" alt="{{edge.name}}">
+                        <span class="edge-name">{{edge.name}}</span>
+                        <button type="button" class="icon fa-solid fa-xmark" data-action="clearEdge" data-tooltip="{{localize 'SWADE_ADVANCEMENT.ClearEdge'}}" aria-label="{{localize 'SWADE_ADVANCEMENT.ClearEdge'}}"></button>
+                    </div>
+                    {{#if edge.groups.length}}
+                        <div class="edge-requirements">
+                            {{#each edge.groups as | group |}}
+                                <div class="{{#if (gt group.requirements.length 1)}}requirement-group {{#if group.missing}}missing{{else if group.unverifiable}}unverifiable{{else}}met{{/if}}{{/if}}">
+                                    {{#each group.requirements}}
+                                        <div class="requirement {{#if missing}}missing{{else if unverifiable}}unverifiable{{else}}met{{/if}}">
+                                            {{#if missing}}
+                                                <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
+                                            {{else if unverifiable}}
+                                                <i class="fa-solid fa-circle-question" aria-hidden="true" data-tooltip="{{localize 'SWADE_ADVANCEMENT.Requirements.Unverifiable'}}"></i>
+                                            {{else}}
+                                                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                                            {{/if}}
+                                            <span>{{label}}</span>
+                                            {{#if isOr}}<span class="combinator">{{localize "SWADE_ADVANCEMENT.Requirements.Or"}}</span>{{/if}}
+                                        </div>
+                                    {{/each}}
+                                </div>
+                            {{/each}}
+                        </div>
+                    {{else}}
+                        <p class="no-requirements">{{localize "SWADE_ADVANCEMENT.Requirements.None"}}</p>
+                    {{/if}}
+                </div>
+            {{/if}}
+            <div class="edge-drop-zone {{#if edge}}compact{{/if}}">
+                <i class="fa-solid fa-hand-pointer" aria-hidden="true"></i>
+                <span>{{dropLabel}}</span>
+            </div>
+            {{#if showItemBrowser}}
+                <div class="item-browser-button flexrow">
+                    <button class="open-item-browser-button"><i class="fas fa-folder-gear"></i> {{{localize "SWADE_ADVANCEMENT.OpenItemBrowser"}}}</button>
+                </div>
+            {{/if}}
+        {{/if}}
+
+        {{#if isSingleSkill}}
             <div class="form-group">
-                <label for="two-skills-{{index}}">{{label}}</label>
+                <label for="single-skill">{{localize "SWADE_ADVANCEMENT.Skill"}}</label>
                 <div class="form-fields">
-                    <select id="two-skills-{{index}}" data-selection="twoSkills" data-index="{{index}}">
-                        {{selectOptions options selected=selected blank=@root.placeholder valueAttr="id" labelAttr="label"}}
+                    <select id="single-skill" data-selection="singleSkill">
+                        {{selectOptions skillOptions selected=singleSkill blank=placeholder valueAttr="id" labelAttr="label"}}
                     </select>
                 </div>
             </div>
-        {{/each}}
-    {{/if}}
+            {{#unless skillOptions.length}}
+                <p class="hint">{{localize "SWADE_ADVANCEMENT.NoSkills"}}</p>
+            {{/unless}}
+        {{/if}}
 
-    {{#if isAttribute}}
-        <div class="form-group">
-            <label for="attribute">{{localize "SWADE_ADVANCEMENT.Attribute"}}</label>
-            <div class="form-fields">
-                <select id="attribute" data-selection="attribute">
-                    {{selectOptions attributeOptions selected=attribute blank=placeholder valueAttr="id" labelAttr="label"}}
-                </select>
+        {{#if isTwoSkills}}
+            {{#each skillSelects}}
+                <div class="form-group">
+                    <label for="two-skills-{{index}}">{{label}}</label>
+                    <div class="form-fields">
+                        <select id="two-skills-{{index}}" data-selection="twoSkills" data-index="{{index}}">
+                            {{selectOptions options selected=selected blank=@root.placeholder valueAttr="id" labelAttr="label"}}
+                        </select>
+                    </div>
+                </div>
+            {{/each}}
+        {{/if}}
+
+        {{#if isAttribute}}
+            <div class="form-group">
+                <label for="attribute">{{localize "SWADE_ADVANCEMENT.Attribute"}}</label>
+                <div class="form-fields">
+                    <select id="attribute" data-selection="attribute">
+                        {{selectOptions attributeOptions selected=attribute blank=placeholder valueAttr="id" labelAttr="label"}}
+                    </select>
+                </div>
             </div>
-        </div>
-    {{/if}}
+        {{/if}}
 
-    {{#if isHindrance}}
-        <div class="form-group">
-            <label for="hindrance">{{localize "SWADE_ADVANCEMENT.Hindrance"}}</label>
-            <div class="form-fields">
-                <select id="hindrance" data-selection="hindrance">
-                    {{selectOptions hindranceOptions selected=hindrance blank=placeholder valueAttr="id" labelAttr="label"}}
-                </select>
+        {{#if isHindrance}}
+            <div class="form-group">
+                <label for="hindrance">{{localize "SWADE_ADVANCEMENT.Hindrance"}}</label>
+                <div class="form-fields">
+                    <select id="hindrance" data-selection="hindrance">
+                        {{selectOptions hindranceOptions selected=hindrance blank=placeholder valueAttr="id" labelAttr="label"}}
+                    </select>
+                </div>
             </div>
-        </div>
-        {{#unless hindranceOptions.length}}
-            <p class="hint">{{localize "SWADE_ADVANCEMENT.NoHindrances"}}</p>
-        {{/unless}}
-    {{/if}}
+            {{#unless hindranceOptions.length}}
+                <p class="hint">{{localize "SWADE_ADVANCEMENT.NoHindrances"}}</p>
+            {{/unless}}
+        {{/if}}
 
-    {{#if warnings.length}}
-        <div class="advance-warnings">
-            <p class="advance-warnings-header"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{localize "SWADE_ADVANCEMENT.Issues.Header"}}</p>
-            <ul>
-                {{#each warnings}}
-                    <li>{{this}}</li>
-                {{/each}}
-            </ul>
-        </div>
-    {{/if}}
+        {{#if warnings.length}}
+            <div class="advance-warnings">
+                <p class="advance-warnings-header"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{localize "SWADE_ADVANCEMENT.Issues.Header"}}</p>
+                <ul>
+                    {{#each warnings}}
+                        <li>{{this}}</li>
+                    {{/each}}
+                </ul>
+            </div>
+        {{/if}}
+
+        {{#if futureWarnings.length}}
+            <div class="advance-warnings">
+                <p class="advance-warnings-header"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {{localize "SWADE_ADVANCEMENT.Issues.LaterHeader"}}</p>
+                <ul>
+                    {{#each futureWarnings}}
+                        <li>{{this}}</li>
+                    {{/each}}
+                </ul>
+            </div>
+        {{/if}}
     {{/if}}
 </section>

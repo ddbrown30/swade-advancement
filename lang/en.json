@@ -84,7 +84,8 @@
     },
 
     "SWADE_ADVANCEMENT.Issues": {
-        "Header": "This change affects later advances",
+        "Header": "Warning",
+        "LaterHeader": "This change affects later advances",
         "Advance": "Advance {number}",
         "EdgeRequirements": "{name} would no longer meet its requirements ({requirements})",
         "SkillMissing": "{name} is raised with a single skill advance but the character would not have the skill yet",

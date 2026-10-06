@@ -404,7 +404,15 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         }
 
         if (context.canSubmit) {
-            context.warnings = AdvanceHistory.describeIssues(await this.getIssues());
+            context.futureWarnings = AdvanceHistory.describeIssues(await this.getIssues());
+
+            context.warnings = [];
+            if (this.advanceType === ADVANCE_TYPE.ATTRIBUTE) {
+                const hasAttributeAdvance = Advancement.hasAttributeAdvanceThisRank(this.actor, this.advanceSort, this.advanceId);
+                if (hasAttributeAdvance) {
+                    context.warnings.push(`${game.i18n.localize(`SWADE_ADVANCEMENT.Issues.AttributeTwice`)}`);
+                }
+            }
         }
 
         return context;
