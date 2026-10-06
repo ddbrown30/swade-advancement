@@ -1,8 +1,25 @@
 <section class="advance-dialog-body">
     <div class="advance-summary">
         <span class="advance-number">{{localize "SWADE_ADVANCEMENT.AdvanceNumber" number=advanceNumber}}</span>
-        <span class="advance-rank">{{rank}}</span>
+        <span class="advance-summary-end">
+            <span class="advance-rank">{{rank}}</span>
+            {{#if canEditDescription}}
+                <button type="button" class="advance-description-toggle" data-action="toggleDescription">
+                    <i class="{{toggleIcon}}" aria-hidden="true"></i>{{toggleLabel}}
+                </button>
+            {{/if}}
+        </span>
     </div>
+
+    {{#if editingDescription}}
+        <div class="form-group stacked">
+            <label for="advance-description">{{localize "SWADE_ADVANCEMENT.Description"}}</label>
+            <div class="form-fields">
+                <textarea id="advance-description" class="advance-description" rows="6">{{description}}</textarea>
+            </div>
+            <p class="hint">{{localize "SWADE_ADVANCEMENT.DescriptionHint"}}</p>
+        </div>
+    {{else}}
 
     {{#if loadedNote}}
         <p class="advance-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{loadedNote}}</p>
@@ -126,5 +143,6 @@
                 {{/each}}
             </ul>
         </div>
+    {{/if}}
     {{/if}}
 </section>

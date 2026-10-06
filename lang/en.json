@@ -5,6 +5,10 @@
     "SWADE_ADVANCEMENT.AdvanceType": "Type",
     "SWADE_ADVANCEMENT.Add": "Add",
     "SWADE_ADVANCEMENT.Save": "Save",
+    "SWADE_ADVANCEMENT.EditDescription": "Edit Description",
+    "SWADE_ADVANCEMENT.BackToAdvance": "Back to Advance",
+    "SWADE_ADVANCEMENT.Description": "Description",
+    "SWADE_ADVANCEMENT.DescriptionHint": "Only the description is saved. The advance's choices and the character are not changed.",
     "SWADE_ADVANCEMENT.Cancel": "Cancel",
     "SWADE_ADVANCEMENT.SelectPlaceholder": "— Select —",
     "SWADE_ADVANCEMENT.Skill": "Skill",
@@ -54,6 +58,7 @@
         "NotAnEdge": "Only edges can be dropped here.",
         "AddFailed": "The advance could not be added.",
         "EditFailed": "The advance could not be updated. Some of its changes may have been applied to the character.",
+        "DescriptionFailed": "The description could not be saved.",
         "DeleteFailed": "The advance could not be deleted. Some of its changes may have been undone."
     },
 

@@ -16,6 +16,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             submit: function (event, button) { this.submit(); },
             cancel: function (event, button) { this.close(); },
             clearEdge: function (event, button) { this.clearEdge(); },
+            toggleDescription: function (event, button) { this.toggleDescription(); },
         },
     };
 
@@ -65,6 +66,8 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         this.initial = undefined;
         this.skipIfUnchanged = false;
         this.loadedFrom = undefined;
+        this.editingDescription = false;
+        this.descriptionDraft = undefined;
         this.clearSelections();
         this.initFromAdvance();
         this.refreshState();
@@ -242,6 +245,28 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     /**
+     * True if the description has been changed in the description editor
+     */
+    get isDescriptionChanged() {
+        return this.descriptionDraft !== undefined && this.descriptionDraft !== (this.advance?.notes ?? "");
+    }
+
+    /**
+     * Switches between the normal view and the editor for the advance's description.
+     * The text typed in the editor is kept when switching back but is only ever used when saving from the editor
+     */
+    toggleDescription() {
+        if (!this.advanceId) return;
+
+        this.editingDescription = !this.editingDescription;
+        if (this.editingDescription) {
+            this.descriptionDraft ??= this.advance?.notes ?? "";
+            this.focusDescription = true;
+        }
+        this.render();
+    }
+
+    /**
      * Gets the problems that saving the current selections would cause for the advances after the one being edited. Problems that
      * were already there are not included. Nothing is returned when adding since new advances go at the end
      * @returns {Promise<Array<Object>>} The issues from AdvanceHistory.plan()
@@ -271,6 +296,26 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         this.refreshState();
 
         const advanceSort = this.advanceSort;
+        const base = {
+            rank: game.swade.util.getRankFromAdvanceAsString(advanceSort),
+            advanceNumber: advanceSort,
+            canEditDescription: !!this.advanceId,
+            toggleLabel: game.i18n.localize(this.editingDescription ? "SWADE_ADVANCEMENT.BackToAdvance" : "SWADE_ADVANCEMENT.EditDescription"),
+            toggleIcon: this.editingDescription ? "fa-solid fa-arrow-left" : "fa-solid fa-pen",
+            submitLabel: game.i18n.localize(this.advanceId ? "SWADE_ADVANCEMENT.Save" : "SWADE_ADVANCEMENT.Add"),
+            submitIcon: this.advanceId ? "fa-solid fa-floppy-disk" : "fa-solid fa-plus",
+        };
+
+        //The description editor shows nothing else so none of what the normal view needs is worked out
+        if (this.editingDescription) {
+            return {
+                ...base,
+                editingDescription: true,
+                description: this.descriptionDraft,
+                canSubmit: this.isDescriptionChanged,
+            };
+        }
+
         const advanceTypes = this.getAdvanceTypeOptions();
         if (!advanceTypes.find((t) => t.id == this.advanceType)) {
             this.advanceType = advanceTypes[0].id;
@@ -278,10 +323,9 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         }
 
         const context = {
+            ...base,
             advanceTypes: advanceTypes,
             advanceType: this.advanceType,
-            rank: game.swade.util.getRankFromAdvanceAsString(advanceSort),
-            advanceNumber: advanceSort,
             isEdge: this.advanceType == ADVANCE_TYPE.EDGE,
             isSingleSkill: this.advanceType == ADVANCE_TYPE.SINGLE_SKILL,
             isTwoSkills: this.advanceType == ADVANCE_TYPE.TWO_SKILLS,
@@ -289,8 +333,6 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             isHindrance: this.advanceType == ADVANCE_TYPE.HINDRANCE,
             placeholder: game.i18n.localize("SWADE_ADVANCEMENT.SelectPlaceholder"),
             canSubmit: false,
-            submitLabel: game.i18n.localize(this.advanceId ? "SWADE_ADVANCEMENT.Save" : "SWADE_ADVANCEMENT.Add"),
-            submitIcon: this.advanceId ? "fa-solid fa-floppy-disk" : "fa-solid fa-plus",
             showItemBrowser: !!game.itemBrowser,
         };
 
@@ -357,6 +399,22 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     activateListeners() {
+        if (this.editingDescription) {
+            const textarea = this.element.querySelector("textarea.advance-description");
+            textarea?.addEventListener("input", (event) => {
+                //Not rendered again so that the cursor stays where it is. Only the save button needs to follow the text
+                this.descriptionDraft = event.target.value;
+                const submitButton = this.element.querySelector('[data-action="submit"]');
+                if (submitButton) submitButton.disabled = !this.isDescriptionChanged;
+            });
+
+            if (this.focusDescription) {
+                this.focusDescription = false;
+                textarea?.focus();
+            }
+            return;
+        }
+
         const typeSelect = this.element.querySelector("select.advance-type");
         typeSelect?.addEventListener("change", (event) => {
             this.advanceType = Number(event.target.value);
@@ -619,7 +677,39 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             });
     }
 
+    /**
+     * Saves the description from the description editor. Nothing else about the advance or the actor is touched
+     */
+    async submitDescription() {
+        if (!this.isDescriptionChanged) {
+            this.close();
+            return;
+        }
+
+        const submitButton = this.element.querySelector('[data-action="submit"]');
+        if (submitButton) submitButton.disabled = true;
+
+        let success = false;
+        try {
+            success = await Advancement.editDescription(this.actor, this.advanceId, this.descriptionDraft);
+        } catch (error) {
+            Utils.consoleMessage("error", { objects: [error], message: "Failed to edit description" });
+        }
+
+        if (success) {
+            this.close();
+        } else {
+            Utils.showNotification("error", game.i18n.localize("SWADE_ADVANCEMENT.Warnings.DescriptionFailed"));
+            this.render();
+        }
+    }
+
     async submit() {
+        //The description editor saves the description and nothing else. Anything typed in it is ignored when saving from the normal view
+        if (this.editingDescription) {
+            return this.submitDescription();
+        }
+
         //Nothing to do if an edit didn't change anything. This also avoids needlessly deleting and recreating an edge
         if (this.isUnchanged) {
             this.close();

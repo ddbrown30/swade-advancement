@@ -133,6 +133,23 @@ export class Advancement {
     }
 
     /**
+     * Changes only the description of an advance. The advance's data and the actor are left exactly as they are.
+     * @param {Actor} actor
+     * @param {String} advanceId
+     * @param {String} notes The new description
+     * @returns {Promise<Boolean>} true if the description was changed
+     */
+    static async editDescription(actor, advanceId, notes) {
+        const list = actor.system.advances.list.toJSON();
+        const advance = list.find((a) => a.id == advanceId);
+        if (!advance) return false;
+
+        advance.notes = notes;
+        await actor.update({ "system.advances.list": list });
+        return true;
+    }
+
+    /**
      * Asks for confirmation then deletes the advance, undoing any changes it made and moving the later advances back a step.
      * If that causes problems for the later advances a second confirmation lists them.
      */

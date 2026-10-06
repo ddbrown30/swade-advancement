@@ -40,6 +40,26 @@
     border-bottom: 1px solid var(--sa-border);
 }
 
+.swade-advancement-dialog .advance-summary-end {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.swade-advancement-dialog .advance-description-toggle {
+    width: auto;
+    margin: 0;
+    padding: 0 0.5rem;
+    line-height: 1.6;
+    font-size: var(--font-size-12, 0.75rem);
+}
+
+.swade-advancement-dialog textarea.advance-description {
+    width: 100%;
+    min-height: 8rem;
+    resize: vertical;
+}
+
 .swade-advancement-dialog .advance-number {
     font-weight: bold;
     font-size: var(--font-size-16, 1rem);
