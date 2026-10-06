@@ -23,3 +23,10 @@ Clicking the edit button on an advance opens the same dialog with the advance's 
 Clicking **Save** undoes the advance's old changes and then applies the new choices. The advance keeps its place in the list. If nothing was changed, the character is left alone. Advances that weren't created by this module can also be edited (see below).
 
 When editing an advance that wasn't created by the module, it reads the description in an attempt to populate the data e.g. for a New Edge advance, it looks for the edge name in the description and searches for that edge on the actor. If it's able to resolve the data, it will treat it the same as if the module had created it, including undoing changes if it is modified.
+
+## Editing the Description
+
+When editing an advance, the **Edit Description** button switches the dialog to an editor for the advance's description. Only the description is shown and only it is saved. The advance's type and choices, the data the module stores on the advance, and the character are not touched, so nothing is undone or reapplied. The description is saved as typed. **Back to Advance** returns to the normal view.
+
+Anything typed in the editor is only saved from the editor. If you switch back to the normal view and save, the description changes are ignored and the description is written as normal, or nothing is done if nothing else was changed.
+
