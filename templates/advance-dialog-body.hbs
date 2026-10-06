@@ -8,6 +8,12 @@
                     <i class="{{toggleIcon}}" aria-hidden="true"></i>{{toggleLabel}}
                 </button>
             {{/if}}
+            <div class="form-group advance-planned-group" data-tooltip="{{localize "SWADE_ADVANCEMENT.PlannedHint"}}">
+                <i class="fa-solid fa-hourglass"></i>
+                <div class="form-fields">
+                    <input type="checkbox" id="advance-planned" class="advance-planned" {{checked planned}} {{#if plannedLocked}}disabled{{/if}}>
+                </div>
+            </div>
         </span>
     </div>
 

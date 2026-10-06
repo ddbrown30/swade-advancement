@@ -139,6 +139,18 @@ export class Utils {
     }
 
     /**
+     * Gets the data needed to create a copy of an edge on an actor. This is also what is stored with a planned edge advance
+     * so the edge can be added later without needing the original item
+     * @param {Item} edge
+     */
+    static getEdgeData(edge) {
+        const edgeData = edge.toObject();
+        delete edgeData._id;
+        foundry.utils.setProperty(edgeData, "_stats.compendiumSource", edge.pack ? edge.uuid : edge._stats?.compendiumSource ?? null);
+        return edgeData;
+    }
+
+    /**
      * Gets the localized name of an attribute
      */
     static getAttributeName(attribute) {

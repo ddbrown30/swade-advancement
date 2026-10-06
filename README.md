@@ -30,3 +30,10 @@ When editing an advance, the **Edit Description** button switches the dialog to 
 
 Anything typed in the editor is only saved from the editor. If you switch back to the normal view and save, the description changes are ignored and the description is written as normal, or nothing is done if nothing else was changed.
 
+## Planned Advances
+
+The dialog has a **Planned** checkbox in the top right; it looks like an hourglass. A planned advance saves its choices but makes no changes to the character. Later planned advances build on earlier ones, so the dialog offers the skills, hindrances and edge requirements the character will have once the planned advances before it have been applied.
+
+Clicking the planned toggle on an advance keeps planned advances at the end of the list. Marking an advance as planned also marks *every advance after it* as planned, and marking it as no longer planned also changes *every advance before it*. This ensures that an advance that isn't planned never comes after one that is. An advance added after a planned advance is always planned. A confirmation lists the advances affected, and any problems that applying them causes, before anything happens. Advances that become planned have their changes undone. Advances that are no longer planned have their saved choices applied to the character. Edges of planned advances are kept as a copy stored with the advance so they can be added later even if the original item is gone.
+
+Advances that weren't created by this module are read from their description when they become planned, as when editing them. If that isn't possible only their planned status changes and the confirmation says so.

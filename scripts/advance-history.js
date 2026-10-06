@@ -20,7 +20,8 @@ export class AdvanceHistory {
     /**
      * Gets the actor's advances in order
      * @param {Actor} actor
-     * @param {String} inferAdvanceId An advance that wasn't created by this module
+     * @param {String|Array<String>} [inferAdvanceId] Advances that weren't created by this module to read from their descriptions.
+     *  Planned advances are never read since they haven't changed the actor so there is nothing to undo
      */
     static getEntries(actor, inferAdvanceId) {
         const allData = Utils.getModuleFlag(actor, FLAGS.advances) ?? {};
@@ -33,14 +34,16 @@ export class AdvanceHistory {
                     type: data?.type ?? advance.type,
                     sort: advance.sort,
                     notes: advance.notes,
-                    planned: advance.planned,
+                    planned: !!advance.planned,
                     data: data,
                     intent: data ? AdvanceHistory.getIntentFromData(actor, data) : undefined,
                 };
             });
 
-        const target = inferAdvanceId ? entries.find((e) => e.id == inferAdvanceId) : undefined;
-        if (target && !target.data) {
+        //Last to first because reading an advance needs the actor as it was after it, which depends on the data of the ones after it
+        const ids = new Set([inferAdvanceId].flat().filter((id) => id));
+        const targets = entries.filter((e) => ids.has(e.id) && !e.data && !e.planned).sort((a, b) => b.sort - a.sort);
+        for (const target of targets) {
             const inference = AdvanceHistory.inferFromNotes(actor, entries, target);
             if (inference) {
                 target.inference = inference;
@@ -203,8 +206,11 @@ export class AdvanceHistory {
      */
     static getIntentFromData(actor, data) {
         switch (data.type) {
-            case ADVANCE_TYPE.EDGE:
-                return { edgeId: data.edgeId, name: data.edgeName, swid: data.edgeSwid, item: actor.items.get(data.edgeId) };
+            case ADVANCE_TYPE.EDGE: {
+                //A planned edge isn't on the actor so the item is rebuilt from the data stored with the advance
+                const item = actor.items.get(data.edgeId) ?? (data.edgeData ? new CONFIG.Item.documentClass(foundry.utils.deepClone(data.edgeData)) : undefined);
+                return { edgeId: data.edgeId, name: data.edgeName, swid: data.edgeSwid, item: item };
+            }
             case ADVANCE_TYPE.SINGLE_SKILL:
             case ADVANCE_TYPE.TWO_SKILLS:
                 return { skills: (data.skills ?? []).map((s) => ({ name: s.name, swid: s.swid, sourceUuid: s.sourceUuid })) };
@@ -270,30 +276,61 @@ export class AdvanceHistory {
 
     /**
      * Gets the actor as it was before the advances at or after the provided sort were applied. This undoes them in reverse order so
-     * that skills created by one advance and raised by another are unwound the way they were built up.
+     * that skills created by one advance and raised by another are unwound the way they were built up. Planned advances are skipped
+     * because they never changed the actor.
      * @param {Array<Object>} entries From getEntries()
      * @param {Number} [sort] Everything from this sort onwards is undone. Leave out to get the actor as it is now
      */
     static getStateBefore(actor, entries, sort = Infinity) {
         const state = new ActorState(actor);
         for (const entry of [...entries].reverse()) {
-            if (entry.sort >= sort && entry.data) state.rewind(entry.data);
+            if (entry.sort >= sort && entry.data && !entry.planned) state.rewind(entry.data);
         }
         return state;
+    }
+
+    /**
+     * Gets the actor as it would be before the advance at the provided sort if every advance before it was applied, planned or not.
+     * This is what a planned advance is built on. Without any planned advances this is the same as getStateBefore().
+     * @param {Array<Object>} entries From getEntries()
+     * @param {Number} [sort] Leave out to get the actor with every advance applied
+     */
+    static getProjectedStateBefore(actor, entries, sort = Infinity) {
+        const start = AdvanceHistory.getStateBefore(actor, entries, 0);
+        const projected = AdvanceHistory.replay(start, entries.filter((e) => e.sort < sort)).projected;
+
+        //Skills created by advances that are applied are on the actor already so they are referred to by their real id
+        for (const skill of projected.skills) {
+            if (skill.id) continue;
+            const lower = skill.name.toLowerCase();
+            skill.id = actor.items.find((i) => i.type == "skill" && i.name.toLowerCase() == lower)?.id;
+        }
+        return projected;
     }
 
     /**
      * Works out the effects of a change to the history
      * @param {Actor} actor
      * @param {Object} change One of
-     *  { kind: "add", type, selection } adds an advance to the end
-     *  { kind: "edit", advanceId, type, selection } changes an advance
+     *  { kind: "add", type, selection, planned } adds an advance to the end
+     *  { kind: "edit", advanceId, type, selection, planned } changes an advance. Leave planned out to keep it as it is
      *  { kind: "delete", advanceId } removes an advance and moves the later ones back a step
+     *  { kind: "planned", advanceId, planned } marks an advance as planned or not. This also applies to every advance after it
      * @returns {Promise<Object|undefined>} The plan, or undefined if the advance doesn't exist
      */
     static async plan(actor, change) {
-        //Editing an advance that wasn't created by this module treats it as though it was if what it chose can be worked out
-        const oldEntries = AdvanceHistory.getEntries(actor, change.kind == "edit" ? change.advanceId : undefined);
+        //Editing an advance that wasn't created by this module treats it as though it was if what it chose can be worked out. The same goes for
+        //advances that are about to become planned since their changes have to be undone
+        let inferIds;
+        if (change.kind == "edit") {
+            inferIds = [change.advanceId];
+        } else if (change.kind == "planned" && change.planned) {
+            const all = AdvanceHistory.getEntries(actor);
+            const index = all.findIndex((e) => e.id == change.advanceId);
+            if (index >= 0) inferIds = all.slice(index).map((e) => e.id);
+        }
+
+        const oldEntries = AdvanceHistory.getEntries(actor, inferIds);
         const target = change.advanceId ? oldEntries.find((e) => e.id == change.advanceId) : undefined;
         if (change.kind != "add" && !target) return;
 
@@ -301,22 +338,37 @@ export class AdvanceHistory {
         let entries;
         let newEntry;
 
+        //Planned advances are always at the end of the list, so there is never an advance that isn't planned after one that is.
+        //Marking an advance as planned also marks every advance after it and marking one as no longer planned also does so for every advance before it
+        const withPlanned = (planned, pivot) => oldEntries.map((e) => {
+            const affected = planned ? e.sort >= pivot : e.sort <= pivot;
+            return affected && !!e.planned != planned ? { ...e, planned: planned } : e;
+        });
+
         switch (change.kind) {
             case "add":
-                newEntry = { id: foundry.utils.randomID(8), type: change.type, sort: oldEntries.length + 1, planned: false };
+                //An advance added after a planned advance has to be planned too
+                newEntry = { id: foundry.utils.randomID(8), type: change.type, sort: oldEntries.length + 1, planned: !!change.planned || !!oldEntries[oldEntries.length - 1]?.planned };
                 entries = [...oldEntries, newEntry];
                 break;
-            case "edit":
-                newEntry = { id: target.id, type: change.type, sort: target.sort, notes: target.notes, planned: false };
-                entries = oldEntries.map((e) => (e === target ? newEntry : e));
+            case "edit": {
+                const planned = change.planned ?? target.planned;
+                newEntry = { id: target.id, type: change.type, sort: target.sort, notes: target.notes, planned: !!planned };
+                entries = withPlanned(!!planned, target.sort).map((e) => (e === target ? newEntry : e));
                 break;
+            }
             case "delete":
                 entries = oldEntries.filter((e) => e !== target).map((e, i) => ({ ...e, sort: i + 1 }));
+                break;
+            case "planned":
+                entries = withPlanned(!!change.planned, target.sort);
                 break;
         }
 
         if (newEntry) {
-            const before = AdvanceHistory.getStateBefore(actor, oldEntries, target?.sort ?? Infinity);
+            //A planned advance is built on the actor with the planned advances before it applied, one that isn't is built on the actor as it is
+            const sort = target?.sort ?? Infinity;
+            const before = newEntry.planned ? AdvanceHistory.getProjectedStateBefore(actor, oldEntries, sort) : AdvanceHistory.getStateBefore(actor, oldEntries, sort);
             newEntry.intent = await AdvanceHistory.getIntentFromSelection(before, change.type, change.selection);
         }
 
@@ -332,11 +384,20 @@ export class AdvanceHistory {
         const oldReplay = AdvanceHistory.replay(start, oldEntries, sources);
         const newReplay = AdvanceHistory.replay(start, entries, sources);
 
+        //The advances that go from being planned to not planned or the other way around
+        const oldById = new Map(oldEntries.map((e) => [e.id, e]));
+        const planChanged = entries.filter((e) => oldById.has(e.id) && !!oldById.get(e.id).planned != !!e.planned);
+
         const issues = []; //The problems the change causes in the advances after the one being changed, not counting ones that were already there
         if (target) {
+            //Unlike the others, an advance that is no longer planned is checked in full since it hasn't been applied before
             const targetIndex = oldEntries.indexOf(target);
-            for (const later of oldEntries.slice(targetIndex + 1)) {
-                const existing = new Set((oldReplay.results.get(later.id)?.issues ?? []).map((i) => i.key));
+            const first = change.kind == "planned" ? targetIndex : targetIndex + 1;
+            //Advances before the target are included if they stop being planned along with it
+            const checked = oldEntries.filter((e, i) => i >= first || (e !== target && planChanged.some((c) => c.id == e.id)));
+            for (const later of checked) {
+                const nowApplied = planChanged.some((e) => e.id == later.id && !e.planned);
+                const existing = new Set(nowApplied ? [] : (oldReplay.results.get(later.id)?.issues ?? []).map((i) => i.key));
                 for (const issue of newReplay.results.get(later.id)?.issues ?? []) {
                     if (existing.has(issue.key)) continue;
                     issues.push({ ...issue, advanceId: later.id, number: later.sort });
@@ -344,26 +405,29 @@ export class AdvanceHistory {
             }
         }
 
-        return { change, target, newEntry, oldEntries, entries, oldReplay, newReplay, issues };
+        return { change, target, newEntry, oldEntries, entries, oldReplay, newReplay, issues, planChanged };
     }
 
     /**
-     * Plays advances forward from the starting state without changing the actor
+     * Plays advances forward from the starting state without changing the actor.
+     *
+     * Planned advances are played too so that their choices can be stored and so that later planned advances build on them, but
+     * only on a separate copy of the actor. What the actor itself would be like is in final and counts and leaves planned advances out.
      * @param {ActorState} start The actor from before the first advance
      * @param {Array<Object>} entries The advances to play in order. Each needs an intent to have any effect
      * @param {Map<String, String>} [sources] Lower case skill names mapped to the uuid the skill is created from
-     * @returns {{results: Map, final: ActorState, counts: Object}}
+     * @returns {{results: Map, final: ActorState, counts: Object, projected: ActorState}} projected is the actor with the planned advances applied as well
      */
     static replay(start, entries, sources = new Map()) {
-        const state = start.clone();
+        const real = { state: start.clone(), counts: { skills: new Map(), attributes: new Map() }, reduced: new Set() };
+        let projected; //Only needed once there is a planned advance. Until then it would be the same as real
         const results = new Map();
-        const counts = { skills: new Map(), attributes: new Map() };
-        const reduced = new Set();
         const attributeRanks = new Map();
         const history = [];
 
         for (const entry of entries) {
-            const result = { issues: [] };
+            const planned = !!entry.planned;
+            const result = { issues: [], applied: !planned };
             results.set(entry.id, result);
 
             const historyEntry = {
@@ -382,20 +446,13 @@ export class AdvanceHistory {
             }
 
             if (entry.intent) {
-                switch (entry.type) {
-                    case ADVANCE_TYPE.EDGE:
-                        AdvanceHistory.replayEdge(state, entry, result, history);
-                        break;
-                    case ADVANCE_TYPE.SINGLE_SKILL:
-                    case ADVANCE_TYPE.TWO_SKILLS:
-                        AdvanceHistory.replaySkills(state, entry, result, counts, sources);
-                        break;
-                    case ADVANCE_TYPE.ATTRIBUTE:
-                        AdvanceHistory.replayAttribute(state, entry, result, counts);
-                        break;
-                    case ADVANCE_TYPE.HINDRANCE:
-                        AdvanceHistory.replayHindrance(state, entry, result, reduced);
-                        break;
+                if (planned) {
+                    projected ??= AdvanceHistory.cloneLane(real);
+                    AdvanceHistory.replayEntry(projected, entry, result, history, sources, false);
+                } else {
+                    AdvanceHistory.replayEntry(real, entry, result, history, sources, true);
+                    //Planned advances after this one build on it
+                    if (projected) AdvanceHistory.replayEntry(projected, entry, { issues: [] }, history, sources, true);
                 }
 
                 if (result.data) result.notes = AdvanceHistory.getNotes(result.data);
@@ -404,10 +461,40 @@ export class AdvanceHistory {
             history.push(historyEntry);
         }
 
-        return { results, final: state, counts };
+        return { results, final: real.state, counts: real.counts, projected: (projected ?? real).state };
     }
 
-    static replayEdge(state, entry, result, history) {
+    static cloneLane(lane) {
+        return {
+            state: lane.state.clone(),
+            counts: { skills: new Map(lane.counts.skills), attributes: new Map(lane.counts.attributes) },
+            reduced: new Set(lane.reduced),
+        };
+    }
+
+    /**
+     * Plays one advance on a lane
+     * @param {Boolean} applied False if the advance is planned. Its choices are still worked out but it will not be put on the actor
+     */
+    static replayEntry(lane, entry, result, history, sources, applied) {
+        switch (entry.type) {
+            case ADVANCE_TYPE.EDGE:
+                AdvanceHistory.replayEdge(lane.state, entry, result, history, applied);
+                break;
+            case ADVANCE_TYPE.SINGLE_SKILL:
+            case ADVANCE_TYPE.TWO_SKILLS:
+                AdvanceHistory.replaySkills(lane.state, entry, result, lane.counts, sources, applied);
+                break;
+            case ADVANCE_TYPE.ATTRIBUTE:
+                AdvanceHistory.replayAttribute(lane.state, entry, result, lane.counts);
+                break;
+            case ADVANCE_TYPE.HINDRANCE:
+                AdvanceHistory.replayHindrance(lane.state, entry, result, lane.reduced);
+                break;
+        }
+    }
+
+    static replayEdge(state, entry, result, history, applied) {
         const intent = entry.intent;
 
         //The edge's item is needed to read its requirements. It's missing if it was deleted from the actor by some other means
@@ -421,10 +508,19 @@ export class AdvanceHistory {
         }
 
         state.items.push({ id: intent.edgeId ?? `pending-${entry.id}`, type: "edge", name: intent.name, swid: intent.swid });
-        result.data = { type: ADVANCE_TYPE.EDGE, edgeId: intent.edgeId, edgeName: intent.name, edgeSwid: intent.swid };
+
+        //An edge that is on the actor is found by its id. One that is planned keeps a copy of the edge so that it can be added later
+        const data = { type: ADVANCE_TYPE.EDGE, edgeName: intent.name, edgeSwid: intent.swid };
+        if (applied) {
+            data.edgeId = intent.edgeId;
+        } else {
+            const source = intent.source ?? intent.item;
+            if (source) data.edgeData = Utils.getEdgeData(source);
+        }
+        result.data = data;
     }
 
-    static replaySkills(state, entry, result, counts, sources) {
+    static replaySkills(state, entry, result, counts, sources, applied) {
         const single = entry.type == ADVANCE_TYPE.SINGLE_SKILL;
         const skills = [];
 
@@ -450,8 +546,9 @@ export class AdvanceHistory {
                     result.issues.push({ kind: "SkillMissing", key: `SkillMissing:${lower}`, name: skill.name });
                 }
 
+                //A skill that a planned advance adds isn't on the actor so it needs an id of its own for the advances that raise it to refer to
                 record = {
-                    id: undefined,
+                    id: applied ? undefined : `planned:${entry.id}:${lower}`,
                     type: "skill",
                     name: skill.name,
                     swid: skill.swid,
@@ -469,7 +566,8 @@ export class AdvanceHistory {
         result.data = {
             type: entry.type,
             skills: skills.map(({ record, created }) => {
-                const skillData = { id: record.id, name: record.name, created: created, die: Utils.normalizeDie(record.die) };
+                const skillData = { name: record.name, created: created, die: Utils.normalizeDie(record.die) };
+                if (record.id) skillData.id = record.id;
                 if (record.swid) skillData.swid = record.swid;
                 if (created && record.sourceUuid) skillData.sourceUuid = record.sourceUuid;
                 return skillData;

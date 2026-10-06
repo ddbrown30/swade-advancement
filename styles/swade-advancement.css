@@ -32,6 +32,10 @@
     flex-direction: column;
     gap: 0.75rem;
 }
+.swade-advancement-dialog .advance-planned-group {
+    display: flex;
+    align-items: center;
+}
 
 /* Advance number and rank */
 .swade-advancement-dialog .advance-summary {
@@ -59,11 +63,11 @@
 .swade-advancement-dialog prose-mirror.advance-description {
     width: 100%;
     min-height: 8rem;
-    background-color: var(--sa-desc-bg);
 }
 
 .swade-advancement-dialog .editor .editor-content {
     padding: 0 5px;
+    background-color: var(--sa-desc-bg);
 }
 
 .swade-advancement-dialog .advance-number {

@@ -25,6 +25,8 @@
     "SWADE_ADVANCEMENT.NoSkills": "No skills are at or above their linked attribute.",
     "SWADE_ADVANCEMENT.NoHindrances": "This character has no hindrances.",
     "SWADE_ADVANCEMENT.OpenItemBrowser": "Browse Edges",
+    "SWADE_ADVANCEMENT.Planned": "Planned",
+    "SWADE_ADVANCEMENT.PlannedHint": "A planned advance keeps its choices but doesn't change the character. Planned advances are always last, so marking this as planned also marks every advance after it, and marking it as no longer planned also changes every advance before it.",
 
     "SWADE_ADVANCEMENT.Requirements": {
         "None": "This edge has no requirements.",
@@ -45,6 +47,11 @@
         "Prompt": "{name} does not meet the requirements for this edge. Do you wish to add it anyway?"
     },
 
+    "SWADE_ADVANCEMENT.AttributeWarning": {
+        "Title": "Multiple Attributes",
+        "Prompt": "{name} has already increased an attribute this Rank. Do you wish to continue anyway?"
+    },
+
     "SWADE_ADVANCEMENT.Delete": {
         "Prompt": "Are you sure you want to delete this advance?",
         "PromptUndo": "Are you sure you want to delete this advance? Any changes it made to the character will be undone."
@@ -59,7 +66,16 @@
         "AddFailed": "The advance could not be added.",
         "EditFailed": "The advance could not be updated. Some of its changes may have been applied to the character.",
         "DescriptionFailed": "The description could not be saved.",
-        "DeleteFailed": "The advance could not be deleted. Some of its changes may have been undone."
+        "DeleteFailed": "The advance could not be deleted. Some of its changes may have been undone.",
+        "PlannedFailed": "The planned advances could not be changed. Some of their changes may have been applied to or undone on the character."
+    },
+
+    "SWADE_ADVANCEMENT.PlannedWarning": {
+        "Title": "Change Planned Advances",
+        "ToPlanned": "This advance and every advance after it will be marked as planned. Their changes will be undone on the character but their choices are kept so they can be applied later. Do you wish to continue?",
+        "ToApplied": "This advance and every advance before it will no longer be planned. Their changes will be applied to the character. Do you wish to continue?",
+        "Untracked": "Advances that weren't created by SWADE Advancement only have their planned status changed. Their changes to the character can't be undone or applied automatically.",
+        "Issues": "Applying these advances causes the following problems:"
     },
 
     "SWADE_ADVANCEMENT.LoadedFromDescription": {

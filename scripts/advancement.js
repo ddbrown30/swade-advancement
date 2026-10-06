@@ -22,6 +22,7 @@ export class Advancement {
         sheetClass.DEFAULT_OPTIONS.actions.addAdvance = Advancement.onAddAdvanceAction;
         sheetClass.DEFAULT_OPTIONS.actions.deleteAdvance = Advancement.onDeleteAdvanceAction;
         sheetClass.DEFAULT_OPTIONS.actions.editAdvance = Advancement.onEditAdvanceAction;
+        sheetClass.DEFAULT_OPTIONS.actions.togglePlannedAdvance = Advancement.onTogglePlannedAdvanceAction;
     }
 
     /**
@@ -47,6 +48,15 @@ export class Advancement {
         const advanceId = target.closest("li.advance")?.dataset.advanceId;
         if (!advanceId) return;
         Advancement.openDialog(this.actor, advanceId);
+    }
+
+    /**
+     * Handles the toggle planned advance button on the character sheet. Called with the sheet as this
+     */
+    static async onTogglePlannedAdvanceAction(_event, target) {
+        const advanceId = target.closest("li.advance")?.dataset.advanceId;
+        if (!advanceId) return;
+        await Advancement.togglePlanned(this.actor, advanceId);
     }
 
     /**
@@ -84,11 +94,32 @@ export class Advancement {
 
     /**
      * Gets a snapshot of the actor as it was when the advance was taken
+     * @param {Actor} actor
+     * @param {String} [advanceId] Leave out for an advance that is being added
+     * @param {Boolean} [planned] A planned advance is built on the actor with the planned advances before it applied
      */
-    static getActorState(actor, advanceId) {
+    static getActorState(actor, advanceId, planned = false) {
         const entries = AdvanceHistory.getEntries(actor, advanceId);
         const advance = entries.find((e) => e.id == advanceId);
-        return AdvanceHistory.getStateBefore(actor, entries, advance?.sort);
+        return planned
+            ? AdvanceHistory.getProjectedStateBefore(actor, entries, advance?.sort)
+            : AdvanceHistory.getStateBefore(actor, entries, advance?.sort);
+    }
+
+    /**
+     * Checks if the last advance is planned. Any advance added after it is planned too
+     */
+    static isLastAdvancePlanned(actor) {
+        const entries = AdvanceHistory.getEntries(actor);
+        return !!entries[entries.length - 1]?.planned;
+    }
+
+    /**
+     * Checks if any advance before the one at the provided sort is planned. If so the actor is different for a planned advance than for one that isn't
+     * @param {String} [excludeAdvanceId] The advance being edited
+     */
+    static hasPlannedBefore(actor, sort, excludeAdvanceId) {
+        return AdvanceHistory.getEntries(actor).some((e) => e.planned && e.sort < sort && e.id != excludeAdvanceId);
     }
 
     /**
@@ -109,10 +140,11 @@ export class Advancement {
      * @param {Actor} actor
      * @param {Number} type One of ADVANCE_TYPE
      * @param {Object} selection The choices made in the dialog
+     * @param {Boolean} [planned] The choices are saved but nothing is applied to the actor
      * @returns {Promise<Boolean>} true if the advance was added
      */
-    static async addAdvance(actor, type, selection) {
-        const plan = await AdvanceHistory.plan(actor, { kind: "add", type: type, selection: selection });
+    static async addAdvance(actor, type, selection, planned = false) {
+        const plan = await AdvanceHistory.plan(actor, { kind: "add", type: type, selection: selection, planned: planned });
         return Advancement.commit(actor, plan);
     }
 
@@ -125,10 +157,11 @@ export class Advancement {
      * @param {String} advanceId
      * @param {Number} type One of ADVANCE_TYPE
      * @param {Object} selection The choices made in the dialog
+     * @param {Boolean} [planned] Whether the advance is planned. If this changes the same goes for every advance after it. Leave out to keep it as it is
      * @returns {Promise<Boolean>} true if the advance was changed
      */
-    static async editAdvance(actor, advanceId, type, selection) {
-        const plan = await AdvanceHistory.plan(actor, { kind: "edit", advanceId: advanceId, type: type, selection: selection });
+    static async editAdvance(actor, advanceId, type, selection, planned) {
+        const plan = await AdvanceHistory.plan(actor, { kind: "edit", advanceId: advanceId, type: type, selection: selection, planned: planned });
         return Advancement.commit(actor, plan);
     }
 
@@ -150,11 +183,69 @@ export class Advancement {
     }
 
     /**
+     * Asks for confirmation then marks the advance and every advance after it as planned or as no longer planned.
+     * Planned advances keep their choices but their changes are undone. When they are no longer planned the changes are applied again.
+     */
+    static async togglePlanned(actor, advanceId) {
+        const advance = actor.system.advances.list.get(advanceId);
+        if (!advance) return;
+        const planned = !advance.planned;
+
+        let success = false;
+        try {
+            const plan = await AdvanceHistory.plan(actor, { kind: "planned", advanceId: advanceId, planned: planned });
+            if (!plan) return;
+            if (!(await Advancement.confirmPlanned(plan, planned))) return;
+            success = await Advancement.commit(actor, plan);
+        } catch (error) {
+            Utils.consoleMessage("error", { objects: [error], message: "Failed to change planned advances" });
+        }
+
+        if (!success) {
+            Utils.showNotification("error", game.i18n.localize("SWADE_ADVANCEMENT.Warnings.PlannedFailed"));
+        }
+    }
+
+    /**
+     * Asks the user to confirm changing which advances are planned. Lists every advance that changes and any problems that applying them causes
+     * @param {Object} plan From AdvanceHistory.plan()
+     * @param {Boolean} planned Whether the advances are becoming planned or are no longer planned
+     * @returns {Promise<Boolean>}
+     */
+    static async confirmPlanned(plan, planned) {
+        const advances = plan.planChanged.map((entry) => {
+            const prefix = game.i18n.format("SWADE_ADVANCEMENT.Issues.Advance", { number: entry.sort });
+            const notes = plan.newReplay.results.get(entry.id)?.notes ?? Utils.stripHtml(entry.notes);
+            return `<li>${Utils.escapeHtml(notes ? `${prefix}: ${notes}` : prefix)}</li>`;
+        }).join("");
+
+        //Advances that weren't created by this module can't be undone or applied since there is nothing to say what they did
+        const hasUntracked = plan.planChanged.some((entry) => !plan.entries.find((e) => e.id == entry.id)?.data);
+
+        let content = `<p>${game.i18n.localize(planned ? "SWADE_ADVANCEMENT.PlannedWarning.ToPlanned" : "SWADE_ADVANCEMENT.PlannedWarning.ToApplied")}</p>`;
+        content += `<ul class="swade-advancement-issues">${advances}</ul>`;
+        if (hasUntracked) {
+            content += `<p class="hint">${game.i18n.localize("SWADE_ADVANCEMENT.PlannedWarning.Untracked")}</p>`;
+        }
+        if (plan.issues.length) {
+            const issues = AdvanceHistory.describeIssues(plan.issues).map((text) => `<li>${Utils.escapeHtml(text)}</li>`).join("");
+            content += `<p>${game.i18n.localize("SWADE_ADVANCEMENT.PlannedWarning.Issues")}</p><ul class="swade-advancement-issues">${issues}</ul>`;
+        }
+
+        return !!(await foundry.applications.api.DialogV2.confirm({
+            window: { title: "SWADE_ADVANCEMENT.PlannedWarning.Title" },
+            content: content,
+            rejectClose: false,
+        }));
+    }
+
+    /**
      * Asks for confirmation then deletes the advance, undoing any changes it made and moving the later advances back a step.
      * If that causes problems for the later advances a second confirmation lists them.
      */
     static async deleteAdvance(actor, id) {
-        const data = Advancement.getAdvanceData(actor)[id];
+        //A planned advance hasn't changed the character so there is nothing to undo
+        const data = actor.system.advances.list.get(id)?.planned ? undefined : Advancement.getAdvanceData(actor)[id];
         const prompt = game.i18n.localize(data ? "SWADE_ADVANCEMENT.Delete.PromptUndo" : "SWADE_ADVANCEMENT.Delete.Prompt");
 
         const confirmed = await foundry.applications.api.DialogV2.confirm({
@@ -205,7 +296,7 @@ export class Advancement {
     static async commit(actor, plan) {
         if (!plan) return false;
 
-        const { change, target, newEntry, entries, oldReplay, newReplay } = plan;
+        const { change, target, newEntry, entries, oldEntries, oldReplay, newReplay } = plan;
         const warnings = [];
         const missing = (name) => warnings.push(game.i18n.format("SWADE_ADVANCEMENT.Undo.MissingItem", { name: name }));
 
@@ -215,10 +306,20 @@ export class Advancement {
         const skillsToCreate = [];
         const hindrancesToRestore = [];
 
-        //The edge the advance used to give. Edges aren't shared between advances so this is never part of a chain
-        if (target?.data?.type == ADVANCE_TYPE.EDGE) {
-            const edge = actor.items.get(target.data.edgeId);
-            if (edge) toDelete.push(edge.id); else missing(target.data.edgeName);
+        //Edges aren't shared between advances so they are never part of a chain. An edge is removed if its advance is deleted, changed or becomes
+        //planned and added if its advance is new, changed or is no longer planned. Planned advances never have an edge on the actor
+        const keptEdges = new Set();
+        for (const old of oldEntries) {
+            if (old.data?.type != ADVANCE_TYPE.EDGE || !oldReplay.results.get(old.id)?.applied) continue;
+
+            const current = entries.find((e) => e.id == old.id);
+            if (current && current !== newEntry && current.type == ADVANCE_TYPE.EDGE && newReplay.results.get(old.id)?.applied) {
+                keptEdges.add(old.id);
+                continue;
+            }
+
+            const edge = actor.items.get(old.data.edgeId);
+            if (edge) toDelete.push(edge.id); else missing(old.data.edgeName);
         }
 
         //Skills
@@ -282,10 +383,20 @@ export class Advancement {
             await actor.createEmbeddedDocuments("Item", hindrancesToRestore, { keepId: true });
         }
 
-        let newEdgeId;
-        if (newEntry?.type == ADVANCE_TYPE.EDGE) {
-            newEdgeId = await Advancement.createEdge(actor, newEntry.intent.source);
-            if (!newEdgeId) return false;
+        const edgeIds = new Map();
+        for (const entry of entries) {
+            if (entry.type != ADVANCE_TYPE.EDGE || !entry.intent || keptEdges.has(entry.id) || !newReplay.results.get(entry.id)?.applied) continue;
+
+            //A planned edge has no item but the item is rebuilt from the copy of the edge stored with the advance
+            const source = entry.intent.source ?? entry.intent.item;
+            if (!source) {
+                missing(entry.intent.name);
+                continue;
+            }
+
+            const edgeId = await Advancement.createEdge(actor, source);
+            if (!edgeId) return false;
+            edgeIds.set(entry.id, edgeId);
         }
 
         for (const skill of skillsToCreate) {
@@ -320,12 +431,21 @@ export class Advancement {
         for (const entry of entries) {
             const result = newReplay.results.get(entry.id);
             const advance = updatedList.find((a) => a.id == entry.id);
-            if (!advance || !result?.data) continue;
+            if (!advance) continue;
+
+            //Everything after an advance that was marked as planned or no longer planned has changed too, whether or not what it chose has
+            advance.planned = !!entry.planned;
+            if (!result?.data) continue;
 
             const data = foundry.utils.deepClone(result.data);
-            if (entry === newEntry && newEdgeId) data.edgeId = newEdgeId;
+            if (edgeIds.has(entry.id)) data.edgeId = edgeIds.get(entry.id);
             for (const skill of data.skills ?? []) {
                 skill.id = skillIds.get(skill.name.toLowerCase()) ?? skill.id;
+            }
+
+            //Flags can't hold undefined and a key that is missing is what says the advance no longer has it
+            for (const key of Object.keys(data)) {
+                if (data[key] === undefined) delete data[key];
             }
 
             const previous = oldData[entry.id];
@@ -334,7 +454,6 @@ export class Advancement {
             //Descriptions are only replaced if the advance changed so that notes added by the user are kept otherwise
             advance.type = data.type;
             advance.notes = AdvanceHistory.getNotes(data);
-            advance.planned = false;
 
             //Flag updates are merged so anything the advance no longer has has to be removed explicitly
             for (const key of Object.keys(previous ?? {})) {
@@ -376,11 +495,7 @@ export class Advancement {
      * @returns {Promise<String|undefined>} The id of the new edge
      */
     static async createEdge(actor, edge) {
-        const edgeData = edge.toObject();
-        delete edgeData._id;
-        foundry.utils.setProperty(edgeData, "_stats.compendiumSource", edge.pack ? edge.uuid : edge._stats?.compendiumSource ?? null);
-
-        const [created] = await actor.createEmbeddedDocuments("Item", [edgeData]);
+        const [created] = await actor.createEmbeddedDocuments("Item", [Utils.getEdgeData(edge)]);
         return created?.id;
     }
 

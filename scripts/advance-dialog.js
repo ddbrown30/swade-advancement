@@ -68,6 +68,8 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         this.loadedFrom = undefined;
         this.editingDescription = false;
         this.descriptionDraft = undefined;
+        //An advance added after a planned one is planned too unless the user says otherwise
+        this.planned = !advanceId && Advancement.isLastAdvancePlanned(this.actor);
         this.clearSelections();
         this.initFromAdvance();
         this.refreshState();
@@ -87,7 +89,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
      */
     refreshState() {
         this.advanceSort = this.advance?.sort ?? Advancement.getNextAdvanceSort(this.actor);
-        this.actorState = Advancement.getActorState(this.actor, this.advanceId);
+        this.actorState = Advancement.getActorState(this.actor, this.advanceId, this.planned);
     }
 
     clearSelections() {
@@ -124,6 +126,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         if (advance.type in ADVANCE_TYPE_LABELS) {
             this.advanceType = Number(advance.type);
         }
+        this.planned = !!advance.planned;
 
         //Advances that weren't created by this module have no stored data. Where possible what they chose is worked out from their description
         const entry = AdvanceHistory.getEntries(this.actor, this.advanceId).find((e) => e.id == this.advanceId);
@@ -139,7 +142,8 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         this.advanceType = data.type;
         switch (data.type) {
             case ADVANCE_TYPE.EDGE:
-                this.edge = this.actor.items.get(data.edgeId);
+                //A planned edge isn't on the actor so it comes from the copy stored with the advance
+                this.edge = entry.intent?.item ?? this.actor.items.get(data.edgeId);
                 break;
 
             case ADVANCE_TYPE.SINGLE_SKILL:
@@ -202,8 +206,11 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     getSelection() {
         return {
             type: this.advanceType,
-            edge: this.edge?.uuid ?? "",
+            //The name is included because the edge of a planned advance isn't a real item so it has no uuid of its own
+            edge: this.edge ? `${this.edge.uuid}|${this.edge.name}` : "",
             skill: this.singleSkill,
+            planned: this.planned,
+            plannedLocked: !this.advanceId && Advancement.isLastAdvancePlanned(this.actor),
             skills: [...this.twoSkills],
             attribute: this.attribute,
             hindrance: this.hindrance,
@@ -272,19 +279,26 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
      * @returns {Promise<Array<Object>>} The issues from AdvanceHistory.plan()
      */
     async getIssues() {
-        if (!this.advanceId || this.isUnchanged) return [];
+        return (await this.getPlan())?.issues ?? [];
+    }
+
+    /**
+     * Works out what saving the current selections of the advance being edited would change
+     * @returns {Promise<Object|undefined>} From AdvanceHistory.plan(). Undefined if nothing would change or it couldn't be worked out
+     */
+    async getPlan() {
+        if (!this.advanceId || this.isUnchanged) return;
 
         try {
-            const plan = await AdvanceHistory.plan(this.actor, {
+            return await AdvanceHistory.plan(this.actor, {
                 kind: "edit",
                 advanceId: this.advanceId,
                 type: this.advanceType,
                 selection: this.getApplySelection(),
+                planned: this.planned,
             });
-            return plan?.issues ?? [];
         } catch (error) {
             Utils.consoleMessage("error", { objects: [error], message: "Failed to check the effects of the change" });
-            return [];
         }
     }
 
@@ -300,6 +314,8 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             rank: game.swade.util.getRankFromAdvanceAsString(advanceSort),
             advanceNumber: advanceSort,
             canEditDescription: !!this.advanceId,
+            planned: this.planned,
+            plannedLocked: Advancement.hasPlannedBefore(this.actor, this.advanceSort, this.advanceId),
             toggleLabel: game.i18n.localize(this.editingDescription ? "SWADE_ADVANCEMENT.BackToAdvance" : "SWADE_ADVANCEMENT.EditDescription"),
             toggleIcon: this.editingDescription ? "fa-solid fa-arrow-left" : "fa-solid fa-pen",
             submitLabel: game.i18n.localize(this.advanceId ? "SWADE_ADVANCEMENT.Save" : "SWADE_ADVANCEMENT.Add"),
@@ -422,6 +438,14 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             this.render();
         });
 
+        const plannedCheckbox = this.element.querySelector("input.advance-planned");
+        plannedCheckbox?.addEventListener("change", (event) => {
+            this.planned = event.target.checked;
+            //The skills and hindrances to choose from are different if the advances before this one are planned so the selections may not be valid any more
+            if (Advancement.hasPlannedBefore(this.actor, this.advanceSort, this.advanceId)) this.clearSelections();
+            this.render();
+        });
+
         for (const select of this.element.querySelectorAll("select[data-selection]")) {
             select.addEventListener("change", (event) => {
                 const target = event.target;
@@ -493,10 +517,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     getAdvanceTypeOptions() {
-        //The advance being edited doesn't count against the once per rank limit
-        const hasAttributeAdvance = Advancement.hasAttributeAdvanceThisRank(this.actor, this.advanceSort, this.advanceId);
         return Object.entries(ADVANCE_TYPE_LABELS)
-            .filter(([type]) => !(Number(type) == ADVANCE_TYPE.ATTRIBUTE && hasAttributeAdvance))
             .map(([type, label]) => ({ id: Number(type), label: game.i18n.localize(label) }));
     }
 
@@ -725,12 +746,28 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                 });
                 if (!confirmed) return;
             }
+        } else if (this.advanceType === ADVANCE_TYPE.ATTRIBUTE) {
+            //The advance being edited doesn't count against the once per rank limit
+            const hasAttributeAdvance = Advancement.hasAttributeAdvanceThisRank(this.actor, this.advanceSort, this.advanceId);
+            if (hasAttributeAdvance) {
+                const confirmed = await foundry.applications.api.DialogV2.confirm({
+                    window: { title: "SWADE_ADVANCEMENT.AttributeWarning.Title" },
+                    content: `<p>${game.i18n.format("SWADE_ADVANCEMENT.AttributeWarning.Prompt", { name: this.actor.name })}</p>`,
+                    rejectClose: false,
+                });
+                if (!confirmed) return;
+            }
         }
 
         //Changing an advance can break the advances after it. The user can still submit if they want
         if (this.advanceId) {
-            const issues = await this.getIssues();
-            if (issues.length && !(await Advancement.confirmIssues(issues, "SWADE_ADVANCEMENT.IssuesWarning.EditPrompt"))) return;
+            const plan = await this.getPlan();
+            if (plan?.planChanged.length) {
+                //Also changes every advance after this one so they are listed along with any problems
+                if (!(await Advancement.confirmPlanned(plan, this.planned))) return;
+            } else if (plan?.issues.length && !(await Advancement.confirmIssues(plan.issues, "SWADE_ADVANCEMENT.IssuesWarning.EditPrompt"))) {
+                return;
+            }
         }
 
         const submitButton = this.element.querySelector('[data-action="submit"]');
@@ -742,8 +779,8 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         let success = false;
         try {
             success = editing
-                ? await Advancement.editAdvance(this.actor, this.advanceId, this.advanceType, selection)
-                : await Advancement.addAdvance(this.actor, this.advanceType, selection);
+                ? await Advancement.editAdvance(this.actor, this.advanceId, this.advanceType, selection, this.planned)
+                : await Advancement.addAdvance(this.actor, this.advanceType, selection, this.planned);
         } catch (error) {
             Utils.consoleMessage("error", { objects: [error], message: editing ? "Failed to edit advance" : "Failed to add advance" });
         }
