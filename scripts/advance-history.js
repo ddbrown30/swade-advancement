@@ -19,10 +19,12 @@ export class AdvanceHistory {
 
     /**
      * Gets the actor's advances in order
+     * @param {Actor} actor
+     * @param {String} inferAdvanceId An advance that wasn't created by this module
      */
-    static getEntries(actor) {
+    static getEntries(actor, inferAdvanceId) {
         const allData = Utils.getModuleFlag(actor, FLAGS.advances) ?? {};
-        return Array.from(actor.system.advances.list.values())
+        const entries = Array.from(actor.system.advances.list.values())
             .sort((a, b) => a.sort - b.sort)
             .map((advance) => {
                 const data = allData[advance.id];
@@ -36,6 +38,164 @@ export class AdvanceHistory {
                     intent: data ? AdvanceHistory.getIntentFromData(actor, data) : undefined,
                 };
             });
+
+        const target = inferAdvanceId ? entries.find((e) => e.id == inferAdvanceId) : undefined;
+        if (target && !target.data) {
+            const inference = AdvanceHistory.inferFromNotes(actor, entries, target);
+            if (inference) {
+                target.inference = inference;
+                if (inference.data) {
+                    target.data = inference.data;
+                    target.intent = AdvanceHistory.getIntentFromData(actor, inference.data);
+                    target.inferred = true;
+                }
+            }
+        }
+
+        return entries;
+    }
+
+    /**
+     * Tries to work out what an advance that wasn't created by this module chose by reading its description
+     * @param {Actor} actor
+     * @param {Array<Object>} entries From getEntries()
+     * @param {Object} target The entry for the advance
+     * @returns {{data: Object|undefined, matched: Object}|undefined} Undefined if the advance has no description or nothing in it matched
+     */
+    static inferFromNotes(actor, entries, target) {
+        const text = Utils.stripHtml(target.notes ?? "").trim();
+        if (!text) return;
+
+        const state = AdvanceHistory.getStateBefore(actor, entries, target.sort + 1);
+        const type = Number(target.type);
+        const matched = {};
+        let data;
+
+        switch (type) {
+            case ADVANCE_TYPE.EDGE: {
+                //Edges that other advances gave can't be this one's
+                const claimed = new Set(entries.map((e) => e.data?.edgeId).filter((id) => id));
+                const edges = state.items.filter((i) => i.type == "edge" && !claimed.has(i.id));
+                const found = AdvanceHistory.findNames(text, edges);
+                if (found.length != 1) return;
+
+                matched.edgeId = found[0].id;
+                data = { type: type, edgeId: found[0].id, edgeName: found[0].name, edgeSwid: found[0].swid };
+                break;
+            }
+
+            case ADVANCE_TYPE.SINGLE_SKILL:
+            case ADVANCE_TYPE.TWO_SKILLS: {
+                const required = type == ADVANCE_TYPE.SINGLE_SKILL ? 1 : 2;
+                const skills = state.skills.filter((s) => !/unskilled|untrained/i.test(s.name));
+                const found = AdvanceHistory.findNames(text, skills);
+                //More names than the advance has skills means we can't tell which are the right ones
+                if (!found.length || found.length > required) return;
+
+                matched.skills = found.map((s) => s.id);
+                if (found.length != required) break;
+
+                //A skill that is only a d4 can't have been raised so the advance must have added it. Skills can't be added with a single skill advance
+                if (type == ADVANCE_TYPE.SINGLE_SKILL && found[0].die.sides <= 4) break;
+
+                data = {
+                    type: type,
+                    skills: found.map((skill) => {
+                        const created = skill.die.sides <= 4;
+                        const skillData = { id: skill.id, name: skill.name, created: created, die: Utils.normalizeDie(skill.die) };
+                        if (skill.swid) skillData.swid = skill.swid;
+                        const source = skill.item?._stats?.compendiumSource;
+                        if (created && source) skillData.sourceUuid = source;
+                        return skillData;
+                    }),
+                };
+                break;
+            }
+
+            case ADVANCE_TYPE.ATTRIBUTE: {
+                const candidates = [];
+                for (const attribute of Object.keys(CONFIG.SWADE.attributes)) {
+                    const labels = CONFIG.SWADE.attributes[attribute];
+                    const names = [Utils.getAttributeName(attribute), labels.short ? game.i18n.localize(labels.short) : undefined, attribute];
+                    for (const name of new Set(names.filter((n) => n))) {
+                        candidates.push({ name: name, attribute: attribute });
+                    }
+                }
+
+                //An attribute can match under more than one of its names
+                const attributes = new Set(AdvanceHistory.findNames(text, candidates, true).map((c) => c.attribute));
+                if (attributes.size != 1) return;
+
+                const attribute = [...attributes][0];
+                matched.attribute = attribute;
+                if (state.attributes[attribute]) {
+                    data = { type: type, attribute: attribute, die: Utils.normalizeDie(state.attributes[attribute]) };
+                }
+                break;
+            }
+
+            case ADVANCE_TYPE.HINDRANCE: {
+                //Only hindrances the character still has can be found. One that the advance removed outright isn't there to match
+                const found = AdvanceHistory.findNames(text, state.hindrances);
+                if (found.length != 1) return;
+
+                const hindrance = found[0];
+                matched.hindranceId = hindrance.id;
+
+                //What the advance did to it is whatever would have left it the way it is now
+                let action;
+                if (hindrance.isMajor) {
+                    if (hindrance.severity != "either") action = HINDRANCE_ACTION.reduced;
+                } else if (hindrance.severity == "either") {
+                    action = HINDRANCE_ACTION.reducedToMinor;
+                }
+                if (action) {
+                    data = { type: type, action: action, hindranceId: hindrance.id, hindranceName: hindrance.name };
+                }
+                break;
+            }
+
+            default:
+                return;
+        }
+
+        return { data: data, matched: matched };
+    }
+
+    /**
+     * Finds which of the candidates are named in the text, in the order they appear. Names are matched as whole words regardless of case, and
+     * what separates them doesn't matter. The longest names are matched first and each part of the text can only be used once so that a
+     * shorter name inside a longer one isn't matched as well.
+     * @param {String} text
+     * @param {Array<Object>} candidates Objects with a name
+     * @param {Boolean} all Return every candidate that matched instead of one per different name. Used when a name can mean more than one candidate
+     */
+    static findNames(text, candidates, all = false) {
+        const lower = text.toLowerCase();
+        const used = [];
+        const found = [];
+        const seen = new Set();
+
+        const sorted = [...candidates].filter((c) => c.name).sort((a, b) => b.name.length - a.name.length);
+        for (const candidate of sorted) {
+            const name = candidate.name.toLowerCase();
+            if (!all && seen.has(name)) continue;
+
+            const regex = new RegExp(`(?<![\\p{L}\\p{N}])${Utils.escapeRegExp(name)}(?![\\p{L}\\p{N}])`, "gu");
+            let match;
+            while ((match = regex.exec(lower))) {
+                const start = match.index;
+                const end = start + name.length;
+                if (used.some(([s, e]) => start < e && end > s)) continue;
+
+                used.push([start, end]);
+                found.push({ candidate: candidate, index: start });
+                seen.add(name);
+                break;
+            }
+        }
+
+        return found.sort((a, b) => a.index - b.index).map((f) => f.candidate);
     }
 
     /**
@@ -132,7 +292,8 @@ export class AdvanceHistory {
      * @returns {Promise<Object|undefined>} The plan, or undefined if the advance doesn't exist
      */
     static async plan(actor, change) {
-        const oldEntries = AdvanceHistory.getEntries(actor);
+        //Editing an advance that wasn't created by this module treats it as though it was if what it chose can be worked out
+        const oldEntries = AdvanceHistory.getEntries(actor, change.kind == "edit" ? change.advanceId : undefined);
         const target = change.advanceId ? oldEntries.find((e) => e.id == change.advanceId) : undefined;
         if (change.kind != "add" && !target) return;
 

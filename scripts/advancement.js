@@ -86,7 +86,7 @@ export class Advancement {
      * Gets a snapshot of the actor as it was when the advance was taken
      */
     static getActorState(actor, advanceId) {
-        const entries = AdvanceHistory.getEntries(actor);
+        const entries = AdvanceHistory.getEntries(actor, advanceId);
         const advance = entries.find((e) => e.id == advanceId);
         return AdvanceHistory.getStateBefore(actor, entries, advance?.sort);
     }

@@ -242,3 +242,11 @@
     margin: 0.5rem 0 0;
     padding-left: 1.25rem;
 }
+
+/* Shown when an advance's choices were read from its description */
+.swade-advancement-dialog .advance-note {
+    margin: 0;
+    font-size: var(--font-size-12, 0.85em);
+    font-style: italic;
+    opacity: 0.8;
+}

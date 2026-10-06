@@ -63,6 +63,8 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         this.advanceType = ADVANCE_TYPE.EDGE;
         this.skillCatalog = undefined;
         this.initial = undefined;
+        this.skipIfUnchanged = false;
+        this.loadedFrom = undefined;
         this.clearSelections();
         this.initFromAdvance();
         this.refreshState();
@@ -91,6 +93,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         this.twoSkills = ["", ""];
         this.attribute = "";
         this.hindrance = "";
+        this.pendingNewSkills = [undefined, undefined];
     }
 
     /**
@@ -115,14 +118,21 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             return;
         }
 
-        //Advances that weren't created by this module have no data so all we know is their type
         if (advance.type in ADVANCE_TYPE_LABELS) {
             this.advanceType = Number(advance.type);
         }
 
-        const data = Advancement.getAdvanceData(this.actor)[this.advanceId];
-        if (!data) return;
+        //Advances that weren't created by this module have no stored data. Where possible what they chose is worked out from their description
+        const entry = AdvanceHistory.getEntries(this.actor, this.advanceId).find((e) => e.id == this.advanceId);
+        const data = entry?.data;
+        if (!data) {
+            this.prefillFromDescription(entry?.inference?.matched);
+            return;
+        }
 
+        this.loadedFrom = entry.inferred ? "inferred" : undefined;
+        //Saving an advance that was read from its description always goes ahead so that it is stored as though this module created it
+        this.skipIfUnchanged = !entry.inferred;
         this.advanceType = data.type;
         switch (data.type) {
             case ADVANCE_TYPE.EDGE:
@@ -137,6 +147,8 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
             case ADVANCE_TYPE.TWO_SKILLS:
                 this.twoSkills = [0, 1].map((i) => AdvanceDialog.getAdvanceSkillValue(data.skills?.[i]));
+                //A skill that was added by the advance has no source to select it by if the advance wasn't created by this module. It's found by name later
+                this.pendingNewSkills = [0, 1].map((i) => (data.skills?.[i]?.created && !data.skills[i].sourceUuid ? data.skills[i].name : undefined));
                 break;
 
             case ADVANCE_TYPE.ATTRIBUTE:
@@ -148,6 +160,36 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                 break;
         }
 
+        this.initial = this.getSelection();
+    }
+
+    /**
+     * Fills in whatever could be matched from the description of an advance that wasn't created by this module, in the case where not everything was matched.
+     * Nothing the advance did can be undone in that case so the selections are only a starting point.
+     * @param {Object} matched From AdvanceHistory.inferFromNotes()
+     */
+    prefillFromDescription(matched) {
+        if (!matched) return;
+
+        switch (this.advanceType) {
+            case ADVANCE_TYPE.EDGE:
+                this.edge = this.actor.items.get(matched.edgeId);
+                break;
+            case ADVANCE_TYPE.SINGLE_SKILL:
+                this.singleSkill = matched.skills?.[0] ? `${SKILL_SOURCE.owned}:${matched.skills[0]}` : "";
+                break;
+            case ADVANCE_TYPE.TWO_SKILLS:
+                this.twoSkills = [0, 1].map((i) => (matched.skills?.[i] ? `${SKILL_SOURCE.owned}:${matched.skills[i]}` : ""));
+                break;
+            case ADVANCE_TYPE.ATTRIBUTE:
+                this.attribute = matched.attribute ?? "";
+                break;
+            case ADVANCE_TYPE.HINDRANCE:
+                this.hindrance = matched.hindranceId ?? "";
+                break;
+        }
+
+        this.loadedFrom = "partial";
         this.initial = this.getSelection();
     }
 
@@ -169,7 +211,7 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
      * True if editing and the selections are the same as the ones the advance already has
      */
     get isUnchanged() {
-        return !!this.initial && JSON.stringify(this.initial) == JSON.stringify(this.getSelection());
+        return this.skipIfUnchanged && !!this.initial && JSON.stringify(this.initial) == JSON.stringify(this.getSelection());
     }
 
     /**
@@ -296,6 +338,11 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                 context.hindrance = this.hindrance;
                 context.canSubmit = !!this.hindrance;
                 break;
+        }
+
+        //Only shown while the type is still the one that was loaded
+        if (this.loadedFrom && this.initial?.type == this.advanceType) {
+            context.loadedNote = game.i18n.localize(this.loadedFrom == "inferred" ? "SWADE_ADVANCEMENT.LoadedFromDescription.All" : "SWADE_ADVANCEMENT.LoadedFromDescription.Some");
         }
 
         if (context.canSubmit) {
@@ -437,13 +484,32 @@ export class AdvanceDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             .sort((a, b) => a.label.localeCompare(b.label));
 
         this.skillCatalog ??= await this.getSkillCatalog();
-        const unowned = this.getUnownedSkills(this.skillCatalog)
+        const unownedSkills = this.getUnownedSkills(this.skillCatalog);
+        this.resolvePendingSkills(unownedSkills);
+        const unowned = unownedSkills
             .map((s) => AdvanceDialog.buildDieOption(`${SKILL_SOURCE.new}:${s.uuid}`, s.name, undefined, { sides: 4, modifier: 0 }))
             .sort((a, b) => a.label.localeCompare(b.label));
 
         unowned.unshift({ id: "divider", label: "--------------------------------", disabled: true });
 
         return owned.concat(unowned);
+    }
+
+    /**
+     * Selects the skills that an advance read from its description added, now that the skills that can be added are known
+     */
+    resolvePendingSkills(unownedSkills) {
+        for (const index of [0, 1]) {
+            const name = this.pendingNewSkills[index];
+            if (!name) continue;
+            this.pendingNewSkills[index] = undefined;
+
+            const match = unownedSkills.find((s) => s.name.toLowerCase() == name.toLowerCase());
+            if (!match || this.twoSkills[index]) continue;
+
+            this.twoSkills[index] = `${SKILL_SOURCE.new}:${match.uuid}`;
+            if (this.initial) this.initial.skills[index] = this.twoSkills[index];
+        }
     }
 
     /**

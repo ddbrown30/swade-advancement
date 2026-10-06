@@ -20,4 +20,6 @@ When an advance added by this module is deleted, its changes are undone where po
 
 Clicking the edit button on an advance opens the same dialog with the advance's current choices filled in. The dialog shows the character as it was *before* the advance was applied. We rewind and reapply all the advances to ensure that everything is still valid.
 
-Clicking **Save** undoes the advance's old changes and then applies the new choices. The advance keeps its place in the list. If nothing was changed, the character is left alone. Advances that weren't created by this module can also be edited, in which case there is nothing to undo.
+Clicking **Save** undoes the advance's old changes and then applies the new choices. The advance keeps its place in the list. If nothing was changed, the character is left alone. Advances that weren't created by this module can also be edited (see below).
+
+When editing an advance that wasn't created by the module, it reads the description in an attempt to populate the data e.g. for a New Edge advance, it looks for the edge name in the description and searches for that edge on the actor. If it's able to resolve the data, it will treat it the same as if the module had created it, including undoing changes if it is modified.

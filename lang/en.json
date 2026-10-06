@@ -57,6 +57,11 @@
         "DeleteFailed": "The advance could not be deleted. Some of its changes may have been undone."
     },
 
+    "SWADE_ADVANCEMENT.LoadedFromDescription": {
+        "All": "This advance wasn't created by SWADE Advancement. Its choices were read from its description. If changes are made and saved, the previous choices will be undone as though they had been made by the module.",
+        "Some": "This advance wasn't created by SWADE Advancement. Some of its choices were read from its description but not all of them could be matched. Saving doesn't undo anything it did."
+    },
+
     "SWADE_ADVANCEMENT.Issues": {
         "Header": "This change affects later advances",
         "Advance": "Advance {number}",

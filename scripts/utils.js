@@ -156,6 +156,13 @@ export class Utils {
     }
 
     /**
+     * Escapes the provided text so that it can be used literally in a regular expression
+     */
+    static escapeRegExp(text) {
+        return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    /**
      * Strips any html from the provided string
      */
     static stripHtml(html) {

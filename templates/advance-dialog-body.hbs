@@ -4,6 +4,10 @@
         <span class="advance-rank">{{rank}}</span>
     </div>
 
+    {{#if loadedNote}}
+        <p class="advance-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{loadedNote}}</p>
+    {{/if}}
+
     <div class="form-group">
         <label for="advance-type">{{localize "SWADE_ADVANCEMENT.AdvanceType"}}</label>
         <div class="form-fields">
