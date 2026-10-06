@@ -307,11 +307,11 @@ export class Advancement {
         const list = actor.system.advances.list.toJSON();
         const update = {};
 
-        const removeKey = (key) => `flags.${NAME}.${FLAGS.advances}.${key}`;
+        const flagName = (key) => `flags.${NAME}.${FLAGS.advances}.${key}`;
         let updatedList = list;
         if (change.kind == "delete") {
             updatedList = list.filter((a) => a.id != target.id);
-            update[removeKey(`-=${target.id}`)] = null;
+            update[flagName(target.id)] = _del;
         } else if (change.kind == "add") {
             updatedList = [...list, { id: newEntry.id, sort: list.length + 1 }];
         }
@@ -329,7 +329,7 @@ export class Advancement {
             }
 
             const previous = oldData[entry.id];
-            if (entry !== newEntry && previous && foundry.utils.objectsEqual(previous, data)) continue;
+            if (entry !== newEntry && previous && foundry.utils.equals(previous, data)) continue;
 
             //Descriptions are only replaced if the advance changed so that notes added by the user are kept otherwise
             advance.type = data.type;
@@ -338,10 +338,10 @@ export class Advancement {
 
             //Flag updates are merged so anything the advance no longer has has to be removed explicitly
             for (const key of Object.keys(previous ?? {})) {
-                if (!(key in data)) update[removeKey(`${entry.id}.-=${key}`)] = null;
+                if (!(key in data)) update[flagName(`${entry.id}.${key}`)] = _del;
             }
             for (const [key, value] of Object.entries(data)) {
-                update[removeKey(`${entry.id}.${key}`)] = value;
+                update[flagName(`${entry.id}.${key}`)] = value;
             }
         }
 
