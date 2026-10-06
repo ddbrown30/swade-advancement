@@ -14,4 +14,10 @@ Clicking the **Add Advance** button on the character sheet opens a dialog where 
 
 ## Deleting Advances
 
-When an advance added by this module is deleted, its changes are undone where possible: edges are removed, skills and attributes are lowered, newly added skills are removed and hindrances are restored.
+When an advance added by this module is deleted, its changes are undone where possible: edges are removed, skills and attributes are lowered, newly added skills are removed and hindrances are restored. When deleting older advances, we rewind and reapply all following advances to ensure that everything is still valid. If not, a warning confirmation is shown.
+
+## Editing Advances
+
+Clicking the edit button on an advance opens the same dialog with the advance's current choices filled in. The dialog shows the character as it was *before* the advance was applied. We rewind and reapply all the advances to ensure that everything is still valid.
+
+Clicking **Save** undoes the advance's old changes and then applies the new choices. The advance keeps its place in the list. If nothing was changed, the character is left alone. Advances that weren't created by this module can also be edited, in which case there is nothing to undo.
