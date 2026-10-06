@@ -26,7 +26,8 @@
         "None": "This edge has no requirements.",
         "Or": "or",
         "Unverifiable": "This requirement can't be checked automatically",
-        "OncePerRank": "Can only be taken once per rank"
+        "OncePerRank": "Can only be taken once per rank",
+        "Once": "Can only be taken once"
     },
 
     "SWADE_ADVANCEMENT.Notes": {

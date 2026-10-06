@@ -44,6 +44,13 @@ export const SKILL_SOURCE = {
 
 export const POWER_POINTS_SWID = "power-points";
 
+export const MULTIPLE_EDGE_SWIDS = [
+    "new-powers",
+    "trademark-weapon",
+    "improved-trademark-weapon",
+    "weapon-specialization",
+];
+
 export const FLAGS = {
     //Keyed by advance id. Holds the data needed to undo an advance
     advances: "advances",

@@ -1,4 +1,4 @@
-import { POWER_POINTS_SWID, ADVANCE_TYPE } from "./module-config.js";
+import { POWER_POINTS_SWID, ADVANCE_TYPE, MULTIPLE_EDGE_SWIDS } from "./module-config.js";
 import { Utils } from "./utils.js";
 
 /**
@@ -34,7 +34,7 @@ export class EdgeRequirements {
             //Characters can take the PP edge as many times as they want once Legendary
             if (rank !== CONFIG.SWADE.CONST.RANK.LEGENDARY) {
                 const met = !EdgeRequirements.hasEdgeThisRank(history, edge, advanceSort, excludeAdvanceId);
-                results.push({
+                results.unshift({
                     label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
                     met: met,
                     missing: !met,
@@ -43,12 +43,20 @@ export class EdgeRequirements {
             }
         } else if (oncePerRankRegex.test(Utils.stripHtml(edge.system.description))) {
             const met = !EdgeRequirements.hasEdgeThisRank(history, edge, advanceSort, excludeAdvanceId);
-            results.push({
+            results.unshift({
                 label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.OncePerRank"),
                 met: met,
                 missing: !met,
                 unverifiable: false,
             });
+        } else if (state.actor.items.some((i) => i.system.swid === edge.system.swid)) {
+            if (!MULTIPLE_EDGE_SWIDS.includes(edge.system.swid)) {
+                results.unshift({
+                    label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.Once"),
+                    met: true,
+                    unverifiable: true,
+                });
+            }
         }
 
         //Requirements joined with "or" form a group. A group is met if any of its members are met
