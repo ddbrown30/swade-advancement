@@ -49,7 +49,7 @@ export class EdgeRequirements {
                 missing: !met,
                 unverifiable: false,
             });
-        } else if (state.actor.items.some((i) => i.system.swid === edge.system.swid)) {
+        } else if (state.items.some((i) => i.swid === edge.system.swid)) {
             if (!MULTIPLE_EDGE_SWIDS.includes(edge.system.swid)) {
                 results.unshift({
                     label: game.i18n.localize("SWADE_ADVANCEMENT.Requirements.Once"),
