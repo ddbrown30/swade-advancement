@@ -8,6 +8,7 @@
     --sa-border: var(--color-border, rgba(0, 0, 0, 0.25));
     --sa-panel: rgba(0, 0, 0, 0.04);
     --sa-accent: var(--color-warm-2, #c9593f);
+    --sa-desc-bg: rgba(0, 0, 0, 0.1);
 }
 
 .theme-dark .swade-advancement-dialog,
@@ -19,6 +20,7 @@
     --sa-unverifiable: #ffd54f;
     --sa-panel: rgba(255, 255, 255, 0.05);
     --sa-border: rgba(255, 255, 255, 0.2);
+    --sa-desc-bg: var(--color-cool-4);
 }
 
 .swade-advancement-dialog .window-content {
@@ -54,10 +56,14 @@
     font-size: var(--font-size-12, 0.75rem);
 }
 
-.swade-advancement-dialog textarea.advance-description {
+.swade-advancement-dialog prose-mirror.advance-description {
     width: 100%;
     min-height: 8rem;
-    resize: vertical;
+    background-color: var(--sa-desc-bg);
+}
+
+.swade-advancement-dialog .editor .editor-content {
+    padding: 0 5px;
 }
 
 .swade-advancement-dialog .advance-number {

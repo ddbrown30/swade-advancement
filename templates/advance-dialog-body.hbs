@@ -15,7 +15,7 @@
         <div class="form-group stacked">
             <label for="advance-description">{{localize "SWADE_ADVANCEMENT.Description"}}</label>
             <div class="form-fields">
-                <textarea id="advance-description" class="advance-description" rows="6">{{description}}</textarea>
+                <prose-mirror id="advance-description" class="advance-description" rows="6" value='{{description}}'>{{{description}}}</prose-mirror>
             </div>
             <p class="hint">{{localize "SWADE_ADVANCEMENT.DescriptionHint"}}</p>
         </div>
