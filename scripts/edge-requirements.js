@@ -113,10 +113,6 @@ export class EdgeRequirements {
             });
         };
 
-        if (req.type === "other" && req.label.includes("(Any)") && !req.label.includes(" or ")) {
-            req.type = "edge";
-        }
-
         switch (req.type) {
             case "wildCard":
                 return { met: state.isWildcard == !!req.value, unverifiable: false };
